@@ -613,18 +613,23 @@ function PlayScreen({
           <h3 className="font-display text-sm tracking-widest text-muted-foreground">HISTORY</h3>
           <ul className="mt-2 divide-y divide-border/50">
             {history.slice().reverse().map((r) => (
-              <li key={r.round} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-muted-foreground">R{r.round}</span>
-                <span className="flex-1 truncate px-2">
-                  {teams[r.matchWinner].name} won
-                  {r.vipKilledA && ` · ${teams.A.name} VIP kill`}
-                  {r.vipKilledB && ` · ${teams.B.name} VIP kill`}
-                </span>
-                <span className="font-display tabular-nums">
-                  <span style={{ color: teamTextColor(teams.A.color) }}>+{r.deltaA}</span>
-                  {" / "}
-                  <span style={{ color: teamTextColor(teams.B.color) }}>+{r.deltaB}</span>
-                </span>
+              <li key={r.round}>
+                <button
+                  onClick={() => onRoundClick(r)}
+                  className="flex w-full items-center justify-between py-2 text-sm text-left hover:bg-muted/30 rounded-md px-1 -mx-1 transition"
+                >
+                  <span className="text-muted-foreground">R{r.round}</span>
+                  <span className="flex-1 truncate px-2">
+                    {teams[r.matchWinner].name} won
+                    {r.vipKilledA && ` · ${teams.A.name} VIP kill`}
+                    {r.vipKilledB && ` · ${teams.B.name} VIP kill`}
+                  </span>
+                  <span className="font-display tabular-nums">
+                    <span style={{ color: teamTextColor(teams.A.color) }}>+{r.deltaA}</span>
+                    {" / "}
+                    <span style={{ color: teamTextColor(teams.B.color) }}>+{r.deltaB}</span>
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
