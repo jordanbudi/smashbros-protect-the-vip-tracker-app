@@ -142,7 +142,7 @@ export function VipBrawlApp() {
 
     const target = settings.targetScore;
     if (newA >= target || newB >= target) {
-      setTimeout(() => setPhase("winner"), 2400);
+      setWinnerPending(true);
     }
   }
 
