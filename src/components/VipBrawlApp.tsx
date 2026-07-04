@@ -225,6 +225,7 @@ export function VipBrawlApp() {
                 onBack={() => setPhase("setup")}
                 onOpenSettings={() => setShowSettings(true)}
                 onSubmitRound={submitRound}
+                onRoundClick={(r) => setSelectedRound(r)}
               />
             </motion.div>
           )}
