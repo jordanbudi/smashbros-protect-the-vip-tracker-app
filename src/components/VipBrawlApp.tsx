@@ -253,7 +253,23 @@ export function VipBrawlApp() {
             key="anim"
             teams={teams}
             info={pendingAnim}
-            onDone={() => setPendingAnim(null)}
+            onDone={() => {
+              setPendingAnim(null);
+              if (winnerPending) {
+                setWinnerPending(false);
+                setTimeout(() => setPhase("winner"), 250);
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedRound && (
+          <RoundDetailModal
+            round={selectedRound}
+            teams={teams}
+            onClose={() => setSelectedRound(null)}
           />
         )}
       </AnimatePresence>
