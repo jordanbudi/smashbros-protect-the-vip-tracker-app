@@ -627,12 +627,12 @@ function ToggleTile({ active, color, onClick, icon, label, sub, disabled }: {
       disabled={disabled}
       style={active ? teamGradientStyle(color) : undefined}
       className={cn(
-        "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition",
+        "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition overflow-hidden w-full",
         active ? "border-transparent text-white" : "border-border bg-muted/40 text-foreground hover:bg-muted",
         disabled && "opacity-40",
       )}
     >
-      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
+      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider min-w-0 w-full">
         {icon}
         <span className="truncate">{label}</span>
       </div>
@@ -689,7 +689,7 @@ function RoundResultOverlay({ teams, info, onDone }: {
   onDone: () => void;
 }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 2600);
+    const t = setTimeout(onDone, 3600);
     return () => clearTimeout(t);
   }, [onDone]);
 
@@ -822,19 +822,19 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl p-4 text-white" style={teamGradientStyle(w.color)}>
+          <div className="rounded-2xl p-4 text-white text-center" style={teamGradientStyle(w.color)}>
             <div className="text-[10px] uppercase tracking-widest text-white/80">Winner</div>
             <div className="truncate font-bold">{w.name}</div>
             <div className="mt-1 font-display text-4xl text-stroke-black tabular-nums">{wScore}</div>
           </div>
-          <div className="rounded-2xl p-4 text-white opacity-80" style={teamGradientStyle(l.color)}>
+          <div className="rounded-2xl p-4 text-white opacity-80 text-center" style={teamGradientStyle(l.color)}>
             <div className="text-[10px] uppercase tracking-widest text-white/80">Runner-up</div>
             <div className="truncate font-bold">{l.name}</div>
             <div className="mt-1 font-display text-4xl text-stroke-black tabular-nums">{lScore}</div>
           </div>
         </div>
 
-        <div className="mt-4 rounded-2xl bg-muted/40 p-3">
+        <div className="mt-4 rounded-2xl bg-muted/40 p-3 text-center">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Rounds played</div>
           <div className="mt-1 font-display text-2xl">{history.length}</div>
         </div>
