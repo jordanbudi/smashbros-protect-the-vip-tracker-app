@@ -445,7 +445,7 @@ function NumberRow({ label, value, onChange, min = 0, max = 99, disabled }: {
 /* ---------------- Play ---------------- */
 
 function PlayScreen({
-  teams, settings, scoreA, scoreB, history, canUndo, canRedo, onUndo, onRedo, onBack, onOpenSettings, onSubmitRound,
+  teams, settings, scoreA, scoreB, history, canUndo, canRedo, onUndo, onRedo, onBack, onOpenSettings, onSubmitRound, onRoundClick,
 }: {
   teams: Record<TeamKey, Team>;
   settings: Settings;
@@ -459,6 +459,7 @@ function PlayScreen({
   onBack: () => void;
   onOpenSettings: () => void;
   onSubmitRound: (i: { matchWinner: TeamKey; vipKilledA: boolean; vipKilledB: boolean; firstVipKiller: TeamKey | null }) => void;
+  onRoundClick: (r: RoundEntry) => void;
 }) {
   const [vipKilledA, setVipKilledA] = useState(false);
   const [vipKilledB, setVipKilledB] = useState(false);
