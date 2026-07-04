@@ -99,6 +99,8 @@ export function VipBrawlApp() {
   const [redoStack, setRedoStack] = useState<RoundEntry[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [pendingAnim, setPendingAnim] = useState<null | RoundAnimInfo>(null);
+  const [winnerPending, setWinnerPending] = useState(false);
+  const [selectedRound, setSelectedRound] = useState<RoundEntry | null>(null);
 
   useEffect(() => { localStorage.setItem("vb.teams", JSON.stringify(teams)); }, [teams]);
   useEffect(() => { localStorage.setItem("vb.settings", JSON.stringify(settings)); }, [settings]);
