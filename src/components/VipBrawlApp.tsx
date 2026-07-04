@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, forwardRef, type CSSProperties } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toPng } from "html-to-image";
-import { Crown, Skull, Swords, Share2, RotateCcw, Settings2, Plus, Minus, ChevronLeft, Zap, Trophy } from "lucide-react";
+import { Crown, Skull, Swords, Share2, RotateCcw, Settings2, Plus, Minus, ChevronLeft, Zap, Trophy, Undo2, Redo2 } from "lucide-react";
 import { TeamIcon, ICON_IDS, type IconId } from "@/components/TeamIcon";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,41 @@ import { toast } from "sonner";
 
 type TeamKey = "A" | "B";
 
+export type TeamColor = "red" | "blue" | "green" | "purple" | "orange" | "pink" | "teal" | "gold";
+
+interface ColorTokens { base: string; glow: string; deep: string; label: string }
+
+const TEAM_COLORS: Record<TeamColor, ColorTokens> = {
+  red:    { base: "oklch(0.65 0.24 25)",  glow: "oklch(0.75 0.24 30)",  deep: "oklch(0.42 0.20 25)",  label: "Red" },
+  blue:   { base: "oklch(0.62 0.22 245)", glow: "oklch(0.72 0.20 240)", deep: "oklch(0.38 0.18 250)", label: "Blue" },
+  green:  { base: "oklch(0.68 0.18 145)", glow: "oklch(0.78 0.18 145)", deep: "oklch(0.44 0.16 148)", label: "Green" },
+  purple: { base: "oklch(0.60 0.22 305)", glow: "oklch(0.72 0.22 305)", deep: "oklch(0.38 0.20 305)", label: "Purple" },
+  orange: { base: "oklch(0.72 0.19 55)",  glow: "oklch(0.82 0.19 60)",  deep: "oklch(0.50 0.18 45)",  label: "Orange" },
+  pink:   { base: "oklch(0.72 0.20 350)", glow: "oklch(0.82 0.18 350)", deep: "oklch(0.48 0.19 350)", label: "Pink" },
+  teal:   { base: "oklch(0.68 0.14 195)", glow: "oklch(0.78 0.15 195)", deep: "oklch(0.42 0.12 200)", label: "Teal" },
+  gold:   { base: "oklch(0.82 0.17 90)",  glow: "oklch(0.90 0.18 95)",  deep: "oklch(0.55 0.16 80)",  label: "Gold" },
+};
+
+export const TEAM_COLOR_IDS = Object.keys(TEAM_COLORS) as TeamColor[];
+
+function teamGradientStyle(color: TeamColor): CSSProperties {
+  const c = TEAM_COLORS[color];
+  return {
+    backgroundImage: `linear-gradient(135deg, ${c.glow}, ${c.base})`,
+    boxShadow: `0 10px 40px -10px ${c.glow}, inset 0 0 0 1px oklch(1 0 0 / 0.10)`,
+  };
+}
+function teamSolidStyle(color: TeamColor): CSSProperties {
+  return { background: TEAM_COLORS[color].base };
+}
+function teamTextColor(color: TeamColor): string {
+  return TEAM_COLORS[color].glow;
+}
+
 interface Team {
   name: string;
   icon: IconId;
-  color: "red" | "blue";
+  color: TeamColor;
 }
 
 interface Settings {
@@ -28,7 +59,7 @@ interface Settings {
 interface RoundEntry {
   round: number;
   matchWinner: TeamKey;
-  vipKilledA: boolean; // Team A killed team B's VIP (i.e., A got the VIP kill)
+  vipKilledA: boolean; // Team A killed team B's VIP
   vipKilledB: boolean; // Team B killed team A's VIP
   firstVipKiller: TeamKey | null;
   deltaA: number;
@@ -65,16 +96,9 @@ export function VipBrawlApp() {
   const [scoreA, setScoreA] = useState(0);
   const [scoreB, setScoreB] = useState(0);
   const [history, setHistory] = useState<RoundEntry[]>([]);
+  const [redoStack, setRedoStack] = useState<RoundEntry[]>([]);
   const [showSettings, setShowSettings] = useState(false);
-  const [pendingAnim, setPendingAnim] = useState<null | {
-    winner: TeamKey;
-    killedTheirVip: boolean;
-    yourVipSurvived: boolean;
-    firstBlood: boolean;
-    deltaWinner: number;
-    deltaLoser: number;
-    loserGained: number;
-  }>(null);
+  const [pendingAnim, setPendingAnim] = useState<null | RoundAnimInfo>(null);
 
   useEffect(() => { localStorage.setItem("vb.teams", JSON.stringify(teams)); }, [teams]);
   useEffect(() => { localStorage.setItem("vb.settings", JSON.stringify(settings)); }, [settings]);
@@ -82,7 +106,7 @@ export function VipBrawlApp() {
   const scoreRef = useRef<HTMLDivElement | null>(null);
 
   function resetGame(keepTeams = true) {
-    setScoreA(0); setScoreB(0); setHistory([]);
+    setScoreA(0); setScoreB(0); setHistory([]); setRedoStack([]);
     setPhase(keepTeams ? "playing" : "setup");
   }
 
@@ -109,28 +133,36 @@ export function VipBrawlApp() {
       deltaA, deltaB,
     };
     setHistory((h) => [...h, entry]);
+    setRedoStack([]); // new action clears redo
     setScoreA(newA); setScoreB(newB);
 
-    // Animation info
-    const winner = matchWinner;
-    const killedTheirVip = winner === "A" ? vipKilledB : vipKilledA;
-    const yourVipSurvived = winner === "A" ? !vipKilledA : !vipKilledB;
-    const firstBlood = settings.firstVipMode && firstVipKiller === winner;
-    setPendingAnim({
-      winner,
-      killedTheirVip,
-      yourVipSurvived,
-      firstBlood,
-      deltaWinner: winner === "A" ? deltaA : deltaB,
-      deltaLoser: winner === "A" ? deltaB : deltaA,
-      loserGained: winner === "A" ? deltaB : deltaA,
-    });
+    setPendingAnim(buildAnimInfo(entry, deltaA, deltaB));
 
-    // Check for game end
     const target = settings.targetScore;
     if (newA >= target || newB >= target) {
       setTimeout(() => setPhase("winner"), 2400);
     }
+  }
+
+  function undo() {
+    if (history.length === 0) return;
+    const last = history[history.length - 1];
+    setHistory((h) => h.slice(0, -1));
+    setRedoStack((r) => [...r, last]);
+    setScoreA((s) => s - last.deltaA);
+    setScoreB((s) => s - last.deltaB);
+    setPendingAnim(null);
+    toast("Round undone", { description: `R${last.round} rolled back` });
+  }
+
+  function redo() {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    setRedoStack((r) => r.slice(0, -1));
+    setHistory((h) => [...h, next]);
+    setScoreA((s) => s + next.deltaA);
+    setScoreB((s) => s + next.deltaB);
+    toast("Round restored", { description: `R${next.round} back in play` });
   }
 
   async function shareResult() {
@@ -157,13 +189,13 @@ export function VipBrawlApp() {
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden bg-background text-foreground">
-      {/* Ambient background */}
+      {/* Ambient background — uses the two teams' actual colors */}
       <div aria-hidden className="pointer-events-none fixed inset-0 opacity-60">
-        <div className="absolute -top-32 -left-24 h-80 w-80 rounded-full bg-team-red-gradient blur-3xl opacity-30" />
-        <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-team-blue-gradient blur-3xl opacity-30" />
+        <div className="absolute -top-32 -left-24 h-80 w-80 rounded-full blur-3xl opacity-30" style={teamGradientStyle(teams.A.color)} />
+        <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full blur-3xl opacity-30" style={teamGradientStyle(teams.B.color)} />
       </div>
 
-      <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-2xl flex-col">
+      <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-3xl flex-col">
         <AnimatePresence mode="wait">
           {phase === "setup" && (
             <motion.div key="setup" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
@@ -184,6 +216,10 @@ export function VipBrawlApp() {
                 scoreA={scoreA}
                 scoreB={scoreB}
                 history={history}
+                canUndo={history.length > 0}
+                canRedo={redoStack.length > 0}
+                onUndo={undo}
+                onRedo={redo}
                 onBack={() => setPhase("setup")}
                 onOpenSettings={() => setShowSettings(true)}
                 onSubmitRound={submitRound}
@@ -208,7 +244,6 @@ export function VipBrawlApp() {
         </AnimatePresence>
       </div>
 
-      {/* Round result animation overlay */}
       <AnimatePresence>
         {pendingAnim && (
           <RoundResultOverlay
@@ -220,7 +255,6 @@ export function VipBrawlApp() {
         )}
       </AnimatePresence>
 
-      {/* Settings sheet */}
       <AnimatePresence>
         {showSettings && (
           <SettingsSheet
@@ -252,18 +286,19 @@ function SetupScreen({
           <Zap className="h-3.5 w-3.5" /> VIP Brawl Scorekeeper
         </div>
         <h1 className="mt-3 font-display text-4xl leading-none text-stroke-black sm:text-5xl">
-          <span className="text-team-red">SMASH</span>{" "}
-          <span className="text-team-blue">SCORE</span>
+          <span style={{ color: teamTextColor(teams.A.color) }}>SMASH</span>{" "}
+          <span style={{ color: teamTextColor(teams.B.color) }}>SCORE</span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">Two teams. One VIP each. First to {settings.targetScore} wins.</p>
       </header>
 
-      <div className="grid gap-4">
+      {/* Side-by-side team cards */}
+      <div className="grid grid-cols-2 gap-3">
         <TeamCard teamKey="A" team={teams.A} onChange={(t) => setTeams({ ...teams, A: t })} />
-        <div className="flex items-center justify-center">
-          <div className="rounded-full border border-border bg-card px-4 py-1 font-display text-sm tracking-widest text-muted-foreground">VS</div>
-        </div>
         <TeamCard teamKey="B" team={teams.B} onChange={(t) => setTeams({ ...teams, B: t })} />
+      </div>
+      <div className="-my-3 flex items-center justify-center">
+        <div className="rounded-full border border-border bg-card px-4 py-1 font-display text-sm tracking-widest text-muted-foreground">VS</div>
       </div>
 
       <section className="rounded-2xl border border-border bg-card/70 p-4">
@@ -292,7 +327,8 @@ function SetupScreen({
 
       <Button
         onClick={onStart}
-        className="h-14 rounded-2xl bg-gold-gradient font-display text-lg tracking-widest text-primary-foreground shadow-[0_10px_40px_-10px_var(--gold-glow)] hover:brightness-110"
+        className="h-14 rounded-2xl font-display text-lg tracking-widest text-primary-foreground hover:brightness-110"
+        style={teamGradientStyle("gold")}
       >
         <Swords className="mr-2 h-5 w-5" /> START MATCH
       </Button>
@@ -301,16 +337,15 @@ function SetupScreen({
 }
 
 function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; onChange: (t: Team) => void }) {
-  const isRed = team.color === "red";
   return (
-    <div className={cn(
-      "relative overflow-hidden rounded-2xl border border-border p-4",
-      isRed ? "bg-team-red-gradient shadow-team-red" : "bg-team-blue-gradient shadow-team-blue",
-    )}>
+    <div
+      className="relative flex flex-col overflow-hidden rounded-2xl border border-border p-4"
+      style={teamGradientStyle(team.color)}
+    >
       <div className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
       <div className="flex items-center gap-3">
         <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-black/25 text-white">
-          <TeamIcon id={team.icon} className="h-9 w-9" />
+          <TeamIcon id={team.icon} className="h-10 w-10" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Team {teamKey}</div>
@@ -323,21 +358,41 @@ function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; o
           />
         </div>
       </div>
+
       <div className="mt-3">
-        <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Pick an icon</div>
-        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Icon</div>
+        <div className="grid grid-cols-4 gap-1.5">
           {ICON_IDS.map((id) => (
             <button
               key={id}
               onClick={() => onChange({ ...team, icon: id })}
               className={cn(
-                "grid h-11 w-11 shrink-0 place-items-center rounded-lg text-white transition",
+                "grid h-10 w-full place-items-center rounded-lg text-white transition",
                 team.icon === id ? "bg-white/30 ring-2 ring-white" : "bg-black/25 hover:bg-black/40",
               )}
               aria-label={id}
             >
               <TeamIcon id={id} className="h-7 w-7" />
             </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3">
+        <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Color</div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {TEAM_COLOR_IDS.map((c) => (
+            <button
+              key={c}
+              onClick={() => onChange({ ...team, color: c })}
+              className={cn(
+                "h-8 w-full rounded-lg border transition",
+                team.color === c ? "border-white ring-2 ring-white/80 scale-105" : "border-black/30 hover:brightness-110",
+              )}
+              style={teamSolidStyle(c)}
+              aria-label={TEAM_COLORS[c].label}
+              title={TEAM_COLORS[c].label}
+            />
           ))}
         </div>
       </div>
@@ -371,27 +426,33 @@ function NumberRow({ label, value, onChange, min = 0, max = 99, disabled }: {
 /* ---------------- Play ---------------- */
 
 function PlayScreen({
-  teams, settings, scoreA, scoreB, history, onBack, onOpenSettings, onSubmitRound,
+  teams, settings, scoreA, scoreB, history, canUndo, canRedo, onUndo, onRedo, onBack, onOpenSettings, onSubmitRound,
 }: {
   teams: Record<TeamKey, Team>;
   settings: Settings;
   scoreA: number;
   scoreB: number;
   history: RoundEntry[];
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
   onBack: () => void;
   onOpenSettings: () => void;
   onSubmitRound: (i: { matchWinner: TeamKey; vipKilledA: boolean; vipKilledB: boolean; firstVipKiller: TeamKey | null }) => void;
 }) {
-  const [vipKilledA, setVipKilledA] = useState(false); // A killed B's VIP
-  const [vipKilledB, setVipKilledB] = useState(false); // B killed A's VIP
+  const [vipKilledA, setVipKilledA] = useState(false);
+  const [vipKilledB, setVipKilledB] = useState(false);
   const [firstVipKiller, setFirstVipKiller] = useState<TeamKey | null>(null);
   const [matchWinner, setMatchWinner] = useState<TeamKey | null>(null);
 
-  // Sync first VIP options
   useEffect(() => {
     if (!settings.firstVipMode) { setFirstVipKiller(null); return; }
     if (firstVipKiller === "A" && !vipKilledA) setFirstVipKiller(null);
     if (firstVipKiller === "B" && !vipKilledB) setFirstVipKiller(null);
+    // Auto-pick when only one team got a VIP kill
+    if (vipKilledA && !vipKilledB) setFirstVipKiller("A");
+    else if (vipKilledB && !vipKilledA) setFirstVipKiller("B");
   }, [vipKilledA, vipKilledB, settings.firstVipMode, firstVipKiller]);
 
   const canSubmit = matchWinner !== null && (!settings.firstVipMode || !(vipKilledA && vipKilledB) || firstVipKiller !== null);
@@ -411,9 +472,17 @@ function PlayScreen({
           <ChevronLeft className="h-4 w-4" /> Setup
         </Button>
         <div className="font-display text-xs tracking-widest text-muted-foreground">ROUND {history.length + 1}</div>
-        <Button variant="ghost" size="sm" onClick={onOpenSettings} className="text-muted-foreground">
-          <Settings2 className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={onUndo} disabled={!canUndo} className="text-muted-foreground" title="Undo round">
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onRedo} disabled={!canRedo} className="text-muted-foreground" title="Redo round">
+            <Redo2 className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onOpenSettings} className="text-muted-foreground">
+            <Settings2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Scoreboard */}
@@ -422,10 +491,7 @@ function PlayScreen({
           const t = teams[k];
           const score = k === "A" ? scoreA : scoreB;
           return (
-            <div key={k} className={cn(
-              "relative overflow-hidden rounded-2xl border border-border p-3",
-              t.color === "red" ? "bg-team-red-gradient shadow-team-red" : "bg-team-blue-gradient shadow-team-blue",
-            )}>
+            <div key={k} className="relative overflow-hidden rounded-2xl border border-border p-3" style={teamGradientStyle(t.color)}>
               <div className="flex items-center gap-2 text-white">
                 <TeamIcon id={t.icon} className="h-6 w-6" />
                 <div className="truncate text-sm font-bold uppercase tracking-wider">{t.name}</div>
@@ -447,7 +513,6 @@ function PlayScreen({
         })}
       </div>
 
-      {/* Round entry */}
       <div className="rounded-2xl border border-border bg-card/70 p-4">
         <h3 className="font-display text-sm tracking-widest text-muted-foreground">LOG THIS ROUND</h3>
 
@@ -455,16 +520,14 @@ function PlayScreen({
           <Label>VIP kills</Label>
           <div className="mt-1 grid grid-cols-2 gap-2">
             <ToggleTile
-              active={vipKilledA}
-              color={teams.A.color}
+              active={vipKilledA} color={teams.A.color}
               onClick={() => setVipKilledA((v) => !v)}
               icon={<Skull className="h-4 w-4" />}
               label={`${teams.A.name} killed VIP`}
               sub={`+${settings.vipKillPoints}`}
             />
             <ToggleTile
-              active={vipKilledB}
-              color={teams.B.color}
+              active={vipKilledB} color={teams.B.color}
               onClick={() => setVipKilledB((v) => !v)}
               icon={<Skull className="h-4 w-4" />}
               label={`${teams.B.name} killed VIP`}
@@ -473,23 +536,19 @@ function PlayScreen({
           </div>
         </div>
 
-        {settings.firstVipMode && (vipKilledA || vipKilledB) && (
+        {settings.firstVipMode && vipKilledA && vipKilledB && (
           <div className="mt-4">
             <Label>Who killed the VIP first?</Label>
             <div className="mt-1 grid grid-cols-2 gap-2">
               <ToggleTile
-                active={firstVipKiller === "A"}
-                color={teams.A.color}
-                disabled={!vipKilledA}
+                active={firstVipKiller === "A"} color={teams.A.color}
                 onClick={() => setFirstVipKiller("A")}
                 icon={<Zap className="h-4 w-4" />}
                 label={teams.A.name}
                 sub={`+${settings.firstVipBonusPoints} first blood`}
               />
               <ToggleTile
-                active={firstVipKiller === "B"}
-                color={teams.B.color}
-                disabled={!vipKilledB}
+                active={firstVipKiller === "B"} color={teams.B.color}
                 onClick={() => setFirstVipKiller("B")}
                 icon={<Zap className="h-4 w-4" />}
                 label={teams.B.name}
@@ -503,16 +562,14 @@ function PlayScreen({
           <Label>Match winner</Label>
           <div className="mt-1 grid grid-cols-2 gap-2">
             <ToggleTile
-              active={matchWinner === "A"}
-              color={teams.A.color}
+              active={matchWinner === "A"} color={teams.A.color}
               onClick={() => setMatchWinner("A")}
               icon={<Crown className="h-4 w-4" />}
               label={teams.A.name}
               sub={`+${settings.matchWinPoints}`}
             />
             <ToggleTile
-              active={matchWinner === "B"}
-              color={teams.B.color}
+              active={matchWinner === "B"} color={teams.B.color}
               onClick={() => setMatchWinner("B")}
               icon={<Crown className="h-4 w-4" />}
               label={teams.B.name}
@@ -524,7 +581,8 @@ function PlayScreen({
         <Button
           disabled={!canSubmit}
           onClick={submit}
-          className="mt-5 h-12 w-full rounded-xl bg-gold-gradient font-display tracking-widest text-primary-foreground shadow-[0_10px_40px_-10px_var(--gold-glow)] hover:brightness-110"
+          className="mt-5 h-12 w-full rounded-xl font-display tracking-widest text-primary-foreground hover:brightness-110"
+          style={teamGradientStyle("gold")}
         >
           LOCK IN ROUND
         </Button>
@@ -543,9 +601,9 @@ function PlayScreen({
                   {r.vipKilledB && ` · ${teams.B.name} VIP kill`}
                 </span>
                 <span className="font-display tabular-nums">
-                  <span className={teams.A.color === "red" ? "text-team-red" : "text-team-blue"}>+{r.deltaA}</span>
+                  <span style={{ color: teamTextColor(teams.A.color) }}>+{r.deltaA}</span>
                   {" / "}
-                  <span className={teams.B.color === "red" ? "text-team-red" : "text-team-blue"}>+{r.deltaB}</span>
+                  <span style={{ color: teamTextColor(teams.B.color) }}>+{r.deltaB}</span>
                 </span>
               </li>
             ))}
@@ -561,19 +619,16 @@ function Label({ children }: { children: React.ReactNode }) {
 }
 
 function ToggleTile({ active, color, onClick, icon, label, sub, disabled }: {
-  active: boolean; color: "red" | "blue"; onClick: () => void; icon: React.ReactNode; label: string; sub: string; disabled?: boolean;
+  active: boolean; color: TeamColor; onClick: () => void; icon: React.ReactNode; label: string; sub: string; disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      style={active ? teamGradientStyle(color) : undefined}
       className={cn(
         "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition",
-        active
-          ? color === "red"
-            ? "border-transparent bg-team-red-gradient text-white shadow-team-red"
-            : "border-transparent bg-team-blue-gradient text-white shadow-team-blue"
-          : "border-border bg-muted/40 text-foreground hover:bg-muted",
+        active ? "border-transparent text-white" : "border-border bg-muted/40 text-foreground hover:bg-muted",
         disabled && "opacity-40",
       )}
     >
@@ -588,14 +643,44 @@ function ToggleTile({ active, color, onClick, icon, label, sub, disabled }: {
 
 /* ---------------- Round result overlay ---------------- */
 
+type RoundTier = "flawless" | "martyred" | "winIsWin" | "clean" | "grind";
+
 interface RoundAnimInfo {
-  winner: TeamKey;
-  killedTheirVip: boolean;
-  yourVipSurvived: boolean;
+  winnerKey: TeamKey;
+  loserKey: TeamKey;
+  tier: RoundTier;
   firstBlood: boolean;
   deltaWinner: number;
-  deltaLoser: number;
   loserGained: number;
+}
+
+function buildAnimInfo(entry: RoundEntry, deltaA: number, deltaB: number): RoundAnimInfo {
+  const winnerKey = entry.matchWinner;
+  const loserKey: TeamKey = winnerKey === "A" ? "B" : "A";
+  const winnerKilledLoserVip = winnerKey === "A" ? entry.vipKilledA : entry.vipKilledB;
+  const winnerVipDied = winnerKey === "A" ? entry.vipKilledB : entry.vipKilledA;
+  const firstBlood = entry.firstVipKiller === winnerKey;
+
+  // Determine tier per user's exact permutations
+  let tier: RoundTier;
+  if (winnerKilledLoserVip && firstBlood && !winnerVipDied) {
+    tier = "flawless";               // Flawless Extraction
+  } else if (winnerKilledLoserVip && firstBlood && winnerVipDied) {
+    tier = "martyred";               // Martyred Victory
+  } else if (entry.firstVipKiller === loserKey) {
+    tier = "winIsWin";               // A Win Is a Win (their VIP fell first, we still won)
+  } else if (winnerKilledLoserVip && !winnerVipDied) {
+    tier = "clean";                  // clean win — killed their VIP, ours survived, but not first blood
+  } else {
+    tier = "grind";                  // grind win — pure match points
+  }
+
+  return {
+    winnerKey, loserKey, tier,
+    firstBlood,
+    deltaWinner: winnerKey === "A" ? deltaA : deltaB,
+    loserGained: winnerKey === "A" ? deltaB : deltaA,
+  };
 }
 
 function RoundResultOverlay({ teams, info, onDone }: {
@@ -604,44 +689,39 @@ function RoundResultOverlay({ teams, info, onDone }: {
   onDone: () => void;
 }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 2200);
+    const t = setTimeout(onDone, 2600);
     return () => clearTimeout(t);
   }, [onDone]);
 
-  const winner = teams[info.winner];
-  // Determine tier
-  const flawless = info.killedTheirVip && info.yourVipSurvived; // perfect round
-  const tier: "flawless" | "clutch" | "close" | "grind" =
-    flawless ? "flawless"
-      : info.killedTheirVip ? "clutch"
-      : info.yourVipSurvived ? "close"
-      : "grind";
+  const winner = teams[info.winnerKey];
+  const loser = teams[info.loserKey];
 
-  const headline = {
-    flawless: "FLAWLESS!",
-    clutch: "DOUBLE K.O.!",
-    close: "CLEAN WIN!",
+  const headlineMap: Record<RoundTier, string> = {
+    flawless: "FLAWLESS EXTRACTION",
+    martyred: "MARTYRED VICTORY",
+    winIsWin: "A WIN IS A WIN",
+    clean: "CLEAN WIN",
     grind: "GRIND WIN",
-  }[tier];
+  };
+  const subMap: Record<RoundTier, string> = {
+    flawless: `${winner.name} wins, killed ${loser.name} VIP first, ${winner.name} VIP survives.`,
+    martyred: `${winner.name} wins, killed ${loser.name} VIP first, but ${winner.name} VIP does not make it out alive.`,
+    winIsWin: `${winner.name} VIP dies first, but ${winner.name} still wins.`,
+    clean: `${winner.name} takes the match and their VIP walks away.`,
+    grind: `${winner.name} grinds out the win on match points alone.`,
+  };
 
-  const sub = {
-    flawless: "Won the match AND took down their VIP — yours survived.",
-    clutch: "Took the VIP with you and still won.",
-    close: "Won the match. Your VIP held the line.",
-    grind: "Won without the VIP kill. Points still count.",
-  }[tier];
-
-  const bg = winner.color === "red" ? "bg-team-red-gradient" : "bg-team-blue-gradient";
+  const sparks = info.tier === "flawless" || info.tier === "martyred";
+  const shake = info.tier === "grind" || info.tier === "winIsWin";
 
   return (
     <motion.div
-      className="fixed inset-0 z-40 grid place-items-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-40 grid place-items-center bg-black/60 backdrop-blur-sm p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
     >
-      {/* Sparks for flawless */}
-      {(tier === "flawless" || tier === "clutch") && (
+      {sparks && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {Array.from({ length: 26 }).map((_, i) => (
+          {Array.from({ length: 28 }).map((_, i) => (
             <span
               key={i}
               className="absolute h-2 w-2 rounded-full"
@@ -661,13 +741,14 @@ function RoundResultOverlay({ teams, info, onDone }: {
         animate={{ scale: 1, rotate: 0, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 18 }}
-        className={cn("relative mx-6 max-w-md rounded-3xl px-8 py-8 text-center text-white shadow-2xl", bg, tier === "grind" && "animate-shake")}
+        style={teamGradientStyle(winner.color)}
+        className={cn("relative mx-6 max-w-md rounded-3xl px-8 py-8 text-center text-white shadow-2xl", shake && "animate-shake")}
       >
         <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-black/30 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em]">
           <TeamIcon id={winner.icon} className="h-3.5 w-3.5" /> {winner.name}
         </div>
-        <div className="font-display text-5xl leading-none text-stroke-black sm:text-6xl">{headline}</div>
-        <div className="mt-3 text-sm text-white/90">{sub}</div>
+        <div className="font-display text-3xl leading-tight text-stroke-black sm:text-4xl">{headlineMap[info.tier]}</div>
+        <div className="mt-3 text-sm text-white/90">{subMap[info.tier]}</div>
 
         <div className="mt-5 flex items-baseline justify-center gap-2">
           <span className="font-display text-6xl text-stroke-black">+{info.deltaWinner}</span>
@@ -681,7 +762,7 @@ function RoundResultOverlay({ teams, info, onDone }: {
         )}
 
         {info.loserGained > 0 && (
-          <div className="mt-3 text-xs text-white/70">Losing team still scored +{info.loserGained}</div>
+          <div className="mt-3 text-xs text-white/70">{loser.name} still scored +{info.loserGained}</div>
         )}
       </motion.div>
     </motion.div>
@@ -689,8 +770,6 @@ function RoundResultOverlay({ teams, info, onDone }: {
 }
 
 /* ---------------- Winner screen ---------------- */
-
-import { forwardRef } from "react";
 
 const WinnerScreen = forwardRef<HTMLDivElement, {
   teams: Record<TeamKey, Team>;
@@ -706,7 +785,6 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
 
   return (
     <div className="relative flex min-h-[100dvh] flex-col p-5 pb-24">
-      {/* Confetti */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         {Array.from({ length: 80 }).map((_, i) => (
           <span
@@ -724,7 +802,7 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
 
       <div ref={ref} className="relative rounded-3xl border border-border bg-card/80 p-6 backdrop-blur">
         <div className="text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-gold-gradient px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground animate-pulse-glow text-[var(--gold)]">
+          <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground animate-pulse-glow" style={teamGradientStyle("gold")}>
             <Trophy className="h-3.5 w-3.5" /> Champion
           </div>
           <motion.div
@@ -733,10 +811,7 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
             transition={{ type: "spring", stiffness: 200, damping: 12 }}
             className="mx-auto mt-4"
           >
-            <div className={cn(
-              "mx-auto grid h-32 w-32 place-items-center rounded-3xl text-white",
-              w.color === "red" ? "bg-team-red-gradient shadow-team-red" : "bg-team-blue-gradient shadow-team-blue",
-            )}>
+            <div className="mx-auto grid h-32 w-32 place-items-center rounded-3xl text-white" style={teamGradientStyle(w.color)}>
               <TeamIcon id={w.icon} className="h-20 w-20 animate-pulse-glow" />
             </div>
           </motion.div>
@@ -747,12 +822,12 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
-          <div className={cn("rounded-2xl p-4 text-white", w.color === "red" ? "bg-team-red-gradient" : "bg-team-blue-gradient")}>
+          <div className="rounded-2xl p-4 text-white" style={teamGradientStyle(w.color)}>
             <div className="text-[10px] uppercase tracking-widest text-white/80">Winner</div>
             <div className="truncate font-bold">{w.name}</div>
             <div className="mt-1 font-display text-4xl text-stroke-black tabular-nums">{wScore}</div>
           </div>
-          <div className={cn("rounded-2xl p-4 text-white opacity-80", l.color === "red" ? "bg-team-red-gradient" : "bg-team-blue-gradient")}>
+          <div className="rounded-2xl p-4 text-white opacity-80" style={teamGradientStyle(l.color)}>
             <div className="text-[10px] uppercase tracking-widest text-white/80">Runner-up</div>
             <div className="truncate font-bold">{l.name}</div>
             <div className="mt-1 font-display text-4xl text-stroke-black tabular-nums">{lScore}</div>
@@ -766,7 +841,7 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
       </div>
 
       <div className="mt-5 grid gap-2">
-        <Button onClick={onShare} className="h-12 rounded-xl bg-gold-gradient font-display tracking-widest text-primary-foreground shadow-[0_10px_40px_-10px_var(--gold-glow)] hover:brightness-110">
+        <Button onClick={onShare} className="h-12 rounded-xl font-display tracking-widest text-primary-foreground hover:brightness-110" style={teamGradientStyle("gold")}>
           <Share2 className="mr-2 h-4 w-4" /> SHARE RESULT
         </Button>
         <div className="grid grid-cols-2 gap-2">
