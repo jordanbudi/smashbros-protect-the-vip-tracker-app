@@ -924,3 +924,87 @@ function SettingsSheet({ settings, setSettings, onClose }: {
     </motion.div>
   );
 }
+
+/* ---------------- Round detail modal ---------------- */
+
+function RoundDetailModal({ round, teams, onClose }: {
+  round: RoundEntry; teams: Record<TeamKey, Team>; onClose: () => void;
+}) {
+  const winner = teams[round.matchWinner];
+  const loser = teams[round.matchWinner === "A" ? "B" : "A"];
+  const info = buildAnimInfo(round, round.deltaA, round.deltaB);
+  const headlineMap: Record<RoundTier, string> = {
+    flawless: "Flawless Extraction",
+    martyred: "Martyred Victory",
+    winIsWin: "A Win Is a Win",
+    clean: "Clean Win",
+    grind: "Grind Win",
+  };
+  const subMap: Record<RoundTier, string> = {
+    flawless: `${winner.name} wins, killed ${loser.name} VIP first, ${winner.name} VIP survives.`,
+    martyred: `${winner.name} wins, killed ${loser.name} VIP first, but ${winner.name} VIP does not make it out alive.`,
+    winIsWin: `${winner.name} VIP dies first, but ${winner.name} still wins.`,
+    clean: `${winner.name} takes the match and their VIP walks away.`,
+    grind: `${winner.name} grinds out the win on match points alone.`,
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.85, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+        style={teamGradientStyle(winner.color)}
+        className="relative w-full max-w-sm rounded-3xl p-6 text-white shadow-2xl"
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-black/40 text-white/90 hover:bg-black/60 transition"
+          aria-label="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 rounded-full bg-black/30 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em]">
+            Round {round.round}
+          </div>
+          <div className="mt-3 mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-black/25">
+            <TeamIcon id={winner.icon} className="h-12 w-12" />
+          </div>
+          <div className="mt-3 font-display text-2xl leading-tight text-stroke-black">
+            {headlineMap[info.tier]}
+          </div>
+          <div className="mt-2 text-sm text-white/90">{subMap[info.tier]}</div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2 text-center">
+          <div className="rounded-xl bg-black/25 p-3">
+            <div className="text-[10px] uppercase tracking-widest text-white/70 truncate">{teams.A.name}</div>
+            <div className="font-display text-2xl tabular-nums">+{round.deltaA}</div>
+          </div>
+          <div className="rounded-xl bg-black/25 p-3">
+            <div className="text-[10px] uppercase tracking-widest text-white/70 truncate">{teams.B.name}</div>
+            <div className="font-display text-2xl tabular-nums">+{round.deltaB}</div>
+          </div>
+        </div>
+
+        <ul className="mt-4 space-y-1.5 text-xs text-white/90">
+          <li className="flex items-center gap-2"><Crown className="h-3.5 w-3.5" /> Match winner: <strong className="ml-auto">{winner.name}</strong></li>
+          <li className="flex items-center gap-2"><Skull className="h-3.5 w-3.5" /> {teams.A.name} killed VIP: <strong className="ml-auto">{round.vipKilledA ? "Yes" : "No"}</strong></li>
+          <li className="flex items-center gap-2"><Skull className="h-3.5 w-3.5" /> {teams.B.name} killed VIP: <strong className="ml-auto">{round.vipKilledB ? "Yes" : "No"}</strong></li>
+          {round.firstVipKiller && (
+            <li className="flex items-center gap-2"><Zap className="h-3.5 w-3.5 text-yellow-300" /> First VIP down: <strong className="ml-auto">{teams[round.firstVipKiller].name}</strong></li>
+          )}
+        </ul>
+      </motion.div>
+    </motion.div>
+  );
+}
+
