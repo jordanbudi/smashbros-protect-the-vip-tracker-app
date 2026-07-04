@@ -627,12 +627,12 @@ function ToggleTile({ active, color, onClick, icon, label, sub, disabled }: {
       disabled={disabled}
       style={active ? teamGradientStyle(color) : undefined}
       className={cn(
-        "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition",
+        "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition overflow-hidden w-full",
         active ? "border-transparent text-white" : "border-border bg-muted/40 text-foreground hover:bg-muted",
         disabled && "opacity-40",
       )}
     >
-      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
+      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider min-w-0 w-full">
         {icon}
         <span className="truncate">{label}</span>
       </div>
@@ -689,7 +689,7 @@ function RoundResultOverlay({ teams, info, onDone }: {
   onDone: () => void;
 }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 2600);
+    const t = setTimeout(onDone, 3600);
     return () => clearTimeout(t);
   }, [onDone]);
 
