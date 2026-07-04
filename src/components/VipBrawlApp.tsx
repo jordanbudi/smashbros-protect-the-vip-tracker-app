@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, forwardRef, type CSSProperties } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toPng } from "html-to-image";
-import { Crown, Skull, Swords, Share2, RotateCcw, Settings2, Plus, Minus, ChevronLeft, Zap, Trophy, Undo2, Redo2 } from "lucide-react";
+import { Crown, Skull, Swords, Share2, RotateCcw, Settings2, Plus, Minus, ChevronLeft, Zap, Trophy, Undo2, Redo2, X } from "lucide-react";
 import { TeamIcon, ICON_IDS, type IconId } from "@/components/TeamIcon";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
