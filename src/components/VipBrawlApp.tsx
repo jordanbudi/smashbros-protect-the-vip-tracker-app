@@ -272,21 +272,21 @@ function SetupScreen({
           <h2 className="font-display text-sm tracking-widest text-muted-foreground">RULES</h2>
         </div>
         <div className="grid gap-3">
-          <NumberRow label="Points for killing a VIP" value={settings.vipKillPoints} min={0} max={20}
-            onChange={(v) => setSettings({ ...settings, vipKillPoints: v })} />
           <NumberRow label="Points for winning the match" value={settings.matchWinPoints} min={0} max={30}
             onChange={(v) => setSettings({ ...settings, matchWinPoints: v })} />
-          <NumberRow label="First VIP kill bonus" value={settings.firstVipBonusPoints} min={0} max={10}
-            onChange={(v) => setSettings({ ...settings, firstVipBonusPoints: v })} disabled={!settings.firstVipMode} />
-          <NumberRow label="Points to win" value={settings.targetScore} min={3} max={99}
-            onChange={(v) => setSettings({ ...settings, targetScore: v })} />
-          <label className="mt-1 flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2">
+          <NumberRow label="Points for killing a VIP" value={settings.vipKillPoints} min={0} max={20}
+            onChange={(v) => setSettings({ ...settings, vipKillPoints: v })} />
+          <label className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2">
             <div>
               <div className="text-sm font-medium">First VIP down bonus</div>
               <div className="text-xs text-muted-foreground">Reward whoever kills the enemy VIP first.</div>
             </div>
             <Switch checked={settings.firstVipMode} onCheckedChange={(v) => setSettings({ ...settings, firstVipMode: v })} />
           </label>
+          <NumberRow label="First VIP kill bonus" value={settings.firstVipBonusPoints} min={0} max={10}
+            onChange={(v) => setSettings({ ...settings, firstVipBonusPoints: v })} disabled={!settings.firstVipMode} />
+          <NumberRow label="Points to win game" value={settings.targetScore} min={3} max={99}
+            onChange={(v) => setSettings({ ...settings, targetScore: v })} />
         </div>
       </section>
 
