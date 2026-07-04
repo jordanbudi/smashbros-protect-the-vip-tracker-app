@@ -588,11 +588,19 @@ function ToggleTile({ active, color, onClick, icon, label, sub, disabled }: {
 
 /* ---------------- Round result overlay ---------------- */
 
+interface RoundAnimInfo {
+  winner: TeamKey;
+  killedTheirVip: boolean;
+  yourVipSurvived: boolean;
+  firstBlood: boolean;
+  deltaWinner: number;
+  deltaLoser: number;
+  loserGained: number;
+}
+
 function RoundResultOverlay({ teams, info, onDone }: {
   teams: Record<TeamKey, Team>;
-  info: NonNullable<Parameters<typeof useState<null>>[0]> extends never ? never : {
-    winner: TeamKey; killedTheirVip: boolean; yourVipSurvived: boolean; firstBlood: boolean; deltaWinner: number; deltaLoser: number; loserGained: number;
-  };
+  info: RoundAnimInfo;
   onDone: () => void;
 }) {
   useEffect(() => {
