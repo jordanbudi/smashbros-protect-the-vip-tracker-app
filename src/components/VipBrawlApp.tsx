@@ -371,7 +371,7 @@ function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; o
         <Input
           value={team.name}
           onChange={(e) => onChange({ ...team, name: e.target.value })}
-          className="mt-3 h-10 w-full border-white/40 bg-white/95 text-center text-foreground placeholder:text-foreground/50 focus-visible:ring-white"
+          className="mt-3 h-10 w-full border-white/40 bg-white/95 text-center font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-500 focus-visible:ring-white"
           placeholder={teamKey === "A" ? "Red Team" : "Blue Team"}
           maxLength={20}
         />
