@@ -23,5 +23,8 @@ export default defineConfig({
   // In GitHub Actions we prerender to a static site suitable for GitHub Pages.
   nitro: {
     preset: "github_pages",
+    rollupConfig: {
+      input: "src/server.ts",
+    },
   },
 });
