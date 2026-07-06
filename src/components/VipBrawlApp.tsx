@@ -362,20 +362,19 @@ function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; o
       style={teamGradientStyle(team.color)}
     >
       <div className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-      <div className="flex items-center gap-3">
-        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-black/25 text-white">
-          <TeamIcon id={team.icon} className="h-10 w-10" />
+
+      <div className="flex flex-col items-center">
+        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Team {teamKey}</div>
+        <div className="mt-2 grid h-24 w-24 place-items-center rounded-2xl bg-black/25 text-white">
+          <TeamIcon id={team.icon} className="h-16 w-16" />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Team {teamKey}</div>
-          <Input
-            value={team.name}
-            onChange={(e) => onChange({ ...team, name: e.target.value })}
-            className="mt-1 h-9 border-white/30 bg-white/10 text-white placeholder:text-white/60 focus-visible:ring-white/60"
-            placeholder={teamKey === "A" ? "Red Team" : "Blue Team"}
-            maxLength={20}
-          />
-        </div>
+        <Input
+          value={team.name}
+          onChange={(e) => onChange({ ...team, name: e.target.value })}
+          className="mt-3 h-10 w-full border-white/40 bg-white/95 text-center text-foreground placeholder:text-foreground/50 focus-visible:ring-white"
+          placeholder={teamKey === "A" ? "Red Team" : "Blue Team"}
+          maxLength={20}
+        />
       </div>
 
       <div className="mt-3">
