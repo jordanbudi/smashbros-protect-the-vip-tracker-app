@@ -19,6 +19,16 @@ export default defineConfig({
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+    ...(isGitHubPagesBuild
+      ? {
+          spa: {
+            enabled: true,
+            prerender: {
+              outputPath: "/",
+            },
+          },
+        }
+      : {}),
   },
   // GitHub Pages is static-only. The Nitro GitHub Pages preset currently fails
   // on Vite 8 SSR input handling, so the workflow builds the static client bundle.
