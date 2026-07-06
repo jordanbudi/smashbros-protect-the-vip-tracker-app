@@ -379,7 +379,7 @@ function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; o
       </div>
 
       <div className="mt-3">
-        <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Icon</div>
+        <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Team Icon</div>
         <div className="grid grid-cols-4 gap-1.5">
           {ICON_IDS.map((id) => (
             <button
