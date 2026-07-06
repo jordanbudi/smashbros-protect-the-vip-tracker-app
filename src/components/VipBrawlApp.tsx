@@ -302,11 +302,11 @@ function SetupScreen({
     <div className="flex flex-col gap-6 p-5 pb-24">
       <header className="pt-6 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1 text-xs uppercase tracking-widest text-muted-foreground">
-          <Zap className="h-3.5 w-3.5" /> VIP Brawl Scorekeeper
+          <Zap className="h-3.5 w-3.5" /> Special Super Smash Bros. Mode Scorekeeper
         </div>
         <h1 className="mt-3 font-display text-4xl leading-none text-stroke-black sm:text-5xl">
-          <span style={{ color: teamTextColor(teams.A.color) }}>SMASH</span>{" "}
-          <span style={{ color: teamTextColor(teams.B.color) }}>SCORE</span>
+          <span style={{ color: teamTextColor(teams.A.color) }}>PROTECT THE</span>{" "}
+          <span style={{ color: teamTextColor(teams.B.color) }}>V.I.P.</span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">Two teams. One VIP each. First to {settings.targetScore} wins.</p>
       </header>
