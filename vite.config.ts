@@ -9,6 +9,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 // When building for GitHub Pages, set BASE_PATH=/<repo-name>/ in the workflow.
 // Inside Lovable sandbox/preview, BASE_PATH is unset and everything stays as-is.
 const basePath = process.env.BASE_PATH ?? "/";
+const isGitHubPagesBuild = process.env.GITHUB_PAGES === "true";
 
 export default defineConfig({
   vite: {
@@ -18,10 +19,18 @@ export default defineConfig({
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+    ...(isGitHubPagesBuild
+      ? {
+          spa: {
+            enabled: true,
+            prerender: {
+              outputPath: "/",
+            },
+          },
+        }
+      : {}),
   },
-  // Nitro overrides only apply outside the Lovable sandbox build (see config types).
-  // In GitHub Actions we prerender to a static site suitable for GitHub Pages.
-  nitro: {
-    preset: "github_pages",
-  },
+  // GitHub Pages is static-only. The Nitro GitHub Pages preset currently fails
+  // on Vite 8 SSR input handling, so the workflow builds the static client bundle.
+  nitro: isGitHubPagesBuild ? false : { preset: "github_pages" },
 });
