@@ -9,6 +9,12 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 // When building for GitHub Pages, set BASE_PATH=/<repo-name>/ in the workflow.
 // Inside Lovable sandbox/preview, BASE_PATH is unset and everything stays as-is.
 const basePath = process.env.BASE_PATH ?? "/";
+const githubPagesNitroConfig = {
+  preset: "github_pages",
+  rollupConfig: {
+    input: "src/server.ts",
+  },
+} as const;
 
 export default defineConfig({
   vite: {
@@ -21,10 +27,5 @@ export default defineConfig({
   },
   // Nitro overrides only apply outside the Lovable sandbox build (see config types).
   // In GitHub Actions we prerender to a static site suitable for GitHub Pages.
-  nitro: {
-    preset: "github_pages",
-    rollupConfig: {
-      input: "src/server.ts",
-    },
-  },
+  nitro: githubPagesNitroConfig as unknown as { preset?: string },
 });
