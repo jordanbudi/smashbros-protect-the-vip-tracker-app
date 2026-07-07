@@ -712,8 +712,8 @@ function ToggleTile({ active, color, onClick, icon, label, sub, disabled }: {
       )}
     >
       <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider min-w-0 w-full">
-        {icon}
-        <span className="truncate">{label}</span>
+        <span className="shrink-0">{icon}</span>
+        <span className="[overflow-wrap:anywhere] hyphens-auto leading-tight">{label}</span>
       </div>
       <div className={cn("font-display text-sm tabular-nums", active ? "text-white/90" : "text-muted-foreground")}>{sub}</div>
     </button>
