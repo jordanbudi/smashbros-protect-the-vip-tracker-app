@@ -887,12 +887,12 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
         <div className="mt-6 grid grid-cols-2 gap-3">
           <div className="rounded-2xl p-4 text-white text-center" style={teamGradientStyle(w.color)}>
             <div className="text-[10px] uppercase tracking-widest text-white/80">Winner</div>
-            <div className="truncate font-bold">{w.name}</div>
+            <div className="font-bold break-words leading-tight">{w.name}</div>
             <div className="mt-1 font-display text-4xl text-stroke-black tabular-nums">{wScore}</div>
           </div>
           <div className="rounded-2xl p-4 text-white opacity-80 text-center" style={teamGradientStyle(l.color)}>
             <div className="text-[10px] uppercase tracking-widest text-white/80">Runner-up</div>
-            <div className="truncate font-bold">{l.name}</div>
+            <div className="font-bold break-words leading-tight">{l.name}</div>
             <div className="mt-1 font-display text-4xl text-stroke-black tabular-nums">{lScore}</div>
           </div>
         </div>
