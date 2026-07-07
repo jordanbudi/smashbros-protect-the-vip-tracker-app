@@ -1029,6 +1029,13 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
           Tip: Add this app to your home screen for one-tap access next brawl night.
         </p>
       </div>
+
+      <div className="relative z-10 mt-3 flex flex-col items-center gap-2 text-center">
+        <p className="text-[11px] text-muted-foreground leading-snug max-w-[260px]">
+          If you found this useful and want to keep this tool ad free, please consider supporting 😁
+        </p>
+        <BuyMeCoffeeButton />
+      </div>
     </div>
   );
 });
