@@ -12,6 +12,8 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
+const faviconHref = `${import.meta.env.BASE_URL}favicon.png?v=2`;
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -87,9 +89,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.png", type: "image/png" },
-      { rel: "shortcut icon", href: "/favicon.png", type: "image/png" },
-      { rel: "apple-touch-icon", href: "/favicon.png" },
+      { rel: "icon", href: faviconHref, type: "image/png", sizes: "180x180" },
+      { rel: "shortcut icon", href: faviconHref, type: "image/png" },
+      { rel: "apple-touch-icon", href: faviconHref, sizes: "180x180" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;500;700;900&display=swap" },
