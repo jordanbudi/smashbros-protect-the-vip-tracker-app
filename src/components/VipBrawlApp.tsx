@@ -866,15 +866,31 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
   const shapes: Array<"square" | "rect" | "circle"> = ["square", "rect", "circle"];
   const faviconHref = `${import.meta.env.BASE_URL}favicon.png?v=2`;
 
+  // Radial rays gradient — sunburst behind everything (like a "GAME!" splash)
+  const winnerTokens = TEAM_COLORS[w.color];
+  const raysBg = `repeating-conic-gradient(from 0deg at 50% 50%, ${winnerTokens.deep} 0deg 8deg, ${winnerTokens.base} 8deg 16deg)`;
+
   return (
-    <div className="relative flex min-h-[100dvh] flex-col p-4 pb-6">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+    <div className="relative flex min-h-[100dvh] flex-col p-4 pb-6 overflow-hidden">
+      {/* Spiraling rays background */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[220vmax] w-[220vmax] -translate-x-1/2 -translate-y-1/2 opacity-40"
+        style={{ background: raysBg, animation: "rays-spin 40s linear infinite" }}
+      />
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/40 via-background/70 to-background" />
+
+      {/* Confetti — foreground layer, staggered so pieces aren't all bunched at the top */}
+      <div className="pointer-events-none fixed inset-0 z-30 overflow-hidden">
         {Array.from({ length: 140 }).map((_, i) => {
           const shape = shapes[i % shapes.length];
           const size = 6 + Math.random() * 10;
           const width = shape === "rect" ? size * 0.5 : size;
           const height = shape === "rect" ? size * 1.4 : size;
           const color = confettiColors[i % confettiColors.length];
+          const duration = 3 + Math.random() * 3;
+          // negative delay up to full duration so pieces are already mid-fall on load
+          const delay = -Math.random() * duration;
           return (
             <span
               key={i}
@@ -885,9 +901,9 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
                 height: `${height}px`,
                 background: color,
                 borderRadius: shape === "circle" ? "50%" : shape === "rect" ? "1px" : "2px",
-                animation: `confetti-fall ${3 + Math.random() * 3}s ${Math.random() * 3}s linear infinite`,
+                animation: `confetti-fall ${duration}s ${delay}s linear infinite`,
                 transform: `rotate(${Math.random() * 360}deg)`,
-                opacity: 0.85,
+                opacity: 0.9,
                 boxShadow: `0 0 6px ${color}55`,
               }}
             />
@@ -895,36 +911,61 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
         })}
       </div>
 
-      <div ref={ref} className="relative rounded-2xl border border-border bg-card/80 p-4 backdrop-blur">
+      <div ref={ref} className="relative z-10 rounded-2xl border border-border bg-card/80 p-4 backdrop-blur">
         <div className="text-center">
           <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground animate-pulse-glow" style={teamGradientStyle("gold")}>
             <Trophy className="h-3 w-3" /> Champion
           </div>
           <motion.div
-            initial={{ scale: 0.4, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+            initial={{ scale: 0.4, opacity: 0, rotate: -8 }}
+            animate={{ scale: 1, opacity: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 200, damping: 12 }}
             className="mx-auto mt-2"
           >
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-2xl text-white" style={teamGradientStyle(w.color)}>
-              <TeamIcon id={w.icon} className="h-14 w-14 animate-pulse-glow" />
+            <div className="mx-auto grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-white/10 to-white/5 p-2 ring-1 ring-white/15">
+              <img
+                src={faviconHref}
+                alt="Smash Score"
+                className="h-16 w-16 rounded-xl animate-pulse-glow"
+                style={{ filter: "drop-shadow(0 0 12px oklch(0.82 0.17 90 / 0.55))" }}
+              />
             </div>
           </motion.div>
-          <h1 className="mt-2 font-display text-3xl leading-none text-stroke-black [overflow-wrap:anywhere]">
+          <div className="mt-3 text-[11px] font-bold uppercase tracking-[0.3em] text-white/70">Winner</div>
+          <motion.h1
+            initial={{ scale: 0.6, opacity: 0, y: 12 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 220, damping: 14, delay: 0.15 }}
+            className="mt-1 font-display text-5xl leading-[0.95] text-stroke-black [overflow-wrap:anywhere] hyphens-auto sm:text-6xl"
+            style={{
+              color: teamTextColor(w.color),
+              filter: `drop-shadow(0 4px 0 rgba(0,0,0,0.4)) drop-shadow(0 0 18px ${winnerTokens.glow})`,
+            }}
+          >
             {w.name.toUpperCase()}
-          </h1>
+          </motion.h1>
           <p className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">Takes the crown</p>
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="rounded-xl p-2.5 text-white text-center" style={teamGradientStyle(w.color)}>
-            <div className="text-[9px] uppercase tracking-widest text-white/80">Winner</div>
-            <div className="text-xs font-bold leading-tight [overflow-wrap:anywhere] hyphens-auto">{w.name}</div>
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-black/30">
+                <TeamIcon id={w.icon} className="h-4 w-4" style={{ display: "block" }} />
+              </div>
+              <div className="text-[9px] uppercase tracking-widest text-white/80">Winner</div>
+            </div>
+            <div className="mt-1 text-xs font-bold leading-tight [overflow-wrap:anywhere] hyphens-auto">{w.name}</div>
             <div className="mt-0.5 font-display text-3xl text-stroke-black tabular-nums leading-none">{wScore}</div>
           </div>
           <div className="rounded-xl p-2.5 text-white opacity-80 text-center" style={teamGradientStyle(l.color)}>
-            <div className="text-[9px] uppercase tracking-widest text-white/80">Runner-up</div>
-            <div className="text-xs font-bold leading-tight [overflow-wrap:anywhere] hyphens-auto">{l.name}</div>
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-black/30">
+                <TeamIcon id={l.icon} className="h-4 w-4" style={{ display: "block" }} />
+              </div>
+              <div className="text-[9px] uppercase tracking-widest text-white/80">Runner-up</div>
+            </div>
+            <div className="mt-1 text-xs font-bold leading-tight [overflow-wrap:anywhere] hyphens-auto">{l.name}</div>
             <div className="mt-0.5 font-display text-3xl text-stroke-black tabular-nums leading-none">{lScore}</div>
           </div>
         </div>
@@ -935,7 +976,7 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
         </div>
       </div>
 
-      <div className="mt-3 grid gap-2">
+      <div className="relative z-10 mt-3 grid gap-2">
         <Button onClick={onShare} className="h-11 rounded-xl font-display tracking-widest text-primary-foreground hover:brightness-110" style={teamGradientStyle("gold")}>
           <Share2 className="mr-2 h-4 w-4" /> SHARE RESULT
         </Button>
@@ -950,7 +991,7 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
       </div>
 
       {/* Home-screen tip — intentionally outside the screenshot ref */}
-      <div className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-card/60 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">
+      <div className="relative z-10 mt-3 flex items-center gap-2 rounded-xl border border-border bg-card/60 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">
         <img src={faviconHref} alt="" className="h-6 w-6 shrink-0 rounded-md" />
         <p className="leading-snug">
           Tip: Add this app to your home screen for one-tap access next brawl night.
