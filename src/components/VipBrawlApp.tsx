@@ -365,8 +365,8 @@ function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; o
 
       <div className="flex flex-col items-center">
         <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Team {teamKey}</div>
-        <div className="mt-2 grid h-24 w-24 place-items-center rounded-2xl bg-black/25 text-white">
-          <TeamIcon id={team.icon} className="h-16 w-16" />
+        <div className="mt-2 flex h-24 w-24 items-center justify-center rounded-2xl bg-black/25 text-white">
+          <TeamIcon id={team.icon} className="h-16 w-16" style={{ display: "block" }} />
         </div>
         <Input
           value={team.name}
