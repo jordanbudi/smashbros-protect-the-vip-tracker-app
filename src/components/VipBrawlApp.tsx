@@ -365,7 +365,7 @@ function SetupScreen({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="vip-brawl">Protect the V.I.P. ScoreKeeper</SelectItem>
-              <SelectItem value="around-the-world" disabled>Around the World (coming soon)</SelectItem>
+              <SelectItem value="around-the-world" disabled>Roster Rush (coming soon)</SelectItem>
               <SelectItem value="king-of-the-character" disabled>The Clone Wars (coming soon)</SelectItem>
             </SelectContent>
           </Select>
@@ -374,7 +374,7 @@ function SetupScreen({
           <span style={{ color: teamTextColor(teams.A.color) }}>PROTECT THE</span>{" "}
           <span style={{ color: teamTextColor(teams.B.color) }}>V.I.P.</span>
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">Two teams. One VIP each. First to {settings.targetScore} wins.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Each Team has One VIP that is set to 300% damage. Earn points for knocking out the opponents VIP, and/or knocking out their VIP before your team&apos;s VIP. First to <span className="text-yellow-400 text-[1.05em] font-semibold">{settings.targetScore}</span> points win.</p>
       </header>
 
       {/* Side-by-side team cards */}
