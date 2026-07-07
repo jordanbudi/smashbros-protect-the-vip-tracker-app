@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, forwardRef, type CSSProperties } from "react";
+import { useEffect, useRef, useState, forwardRef, type CSSProperties, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import html2canvas from "html2canvas-pro";
 import { Crown, Skull, Swords, Share2, RotateCcw, Settings2, Plus, Minus, ChevronLeft, Zap, Trophy, Undo2, Redo2, X } from "lucide-react";
