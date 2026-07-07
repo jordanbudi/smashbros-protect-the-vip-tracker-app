@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, forwardRef, type CSSProperties } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { toPng } from "html-to-image";
+import html2canvas from "html2canvas-pro";
 import { Crown, Skull, Swords, Share2, RotateCcw, Settings2, Plus, Minus, ChevronLeft, Zap, Trophy, Undo2, Redo2, X } from "lucide-react";
 import { TeamIcon, ICON_IDS, type IconId } from "@/components/TeamIcon";
 import { cn } from "@/lib/utils";
@@ -170,18 +170,28 @@ export function VipBrawlApp() {
   async function shareResult() {
     if (!scoreRef.current) return;
     try {
-      const dataUrl = await toPng(scoreRef.current, { pixelRatio: 2, cacheBust: true, backgroundColor: "#0b0f1e" });
-      const blob = await (await fetch(dataUrl)).blob();
+      const canvas = await html2canvas(scoreRef.current, {
+        backgroundColor: "#0b0f1e",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("Failed to render image");
       const file = new File([blob], "vip-brawl-result.png", { type: "image/png" });
       const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean; share?: (d: ShareData) => Promise<void> };
       if (nav.canShare?.({ files: [file] }) && nav.share) {
         await nav.share({ files: [file], title: "VIP Brawl Results", text: "Check out our match!" });
       } else {
+        const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = dataUrl; a.download = "vip-brawl-result.png"; a.click();
+        a.href = url; a.download = "vip-brawl-result.png"; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
         toast.success("Saved screenshot");
       }
     } catch (e) {
+      const err = e as Error;
+      if (err?.name === "AbortError") return; // user cancelled share sheet
       toast.error("Couldn't share — try again");
       console.error(e);
     }
@@ -313,8 +323,31 @@ function SetupScreen({
 
       {/* Side-by-side team cards */}
       <div className="grid grid-cols-2 gap-3">
-        <TeamCard teamKey="A" team={teams.A} onChange={(t) => setTeams({ ...teams, A: t })} />
-        <TeamCard teamKey="B" team={teams.B} onChange={(t) => setTeams({ ...teams, B: t })} />
+        <TeamCard
+          teamKey="A"
+          team={teams.A}
+          otherColor={teams.B.color}
+          onChange={(t) => {
+            // If picking the other team's color, swap
+            if (t.color !== teams.A.color && t.color === teams.B.color) {
+              setTeams({ A: t, B: { ...teams.B, color: teams.A.color } });
+            } else {
+              setTeams({ ...teams, A: t });
+            }
+          }}
+        />
+        <TeamCard
+          teamKey="B"
+          team={teams.B}
+          otherColor={teams.A.color}
+          onChange={(t) => {
+            if (t.color !== teams.B.color && t.color === teams.A.color) {
+              setTeams({ A: { ...teams.A, color: teams.B.color }, B: t });
+            } else {
+              setTeams({ ...teams, B: t });
+            }
+          }}
+        />
       </div>
       <div className="-my-3 flex items-center justify-center">
         <div className="rounded-full border border-border bg-card px-4 py-1 font-display text-sm tracking-widest text-muted-foreground">VS</div>
@@ -355,7 +388,7 @@ function SetupScreen({
   );
 }
 
-function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; onChange: (t: Team) => void }) {
+function TeamCard({ teamKey, team, otherColor, onChange }: { teamKey: TeamKey; team: Team; otherColor: TeamColor; onChange: (t: Team) => void }) {
   return (
     <div
       className="relative flex flex-col overflow-hidden rounded-2xl border border-border p-4"
@@ -368,10 +401,11 @@ function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; o
         <div className="mt-2 flex h-24 w-24 items-center justify-center rounded-2xl bg-black/25 text-white">
           <TeamIcon id={team.icon} className="h-16 w-16" style={{ display: "block" }} />
         </div>
+        <div className="mt-3 mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Name Your Team</div>
         <Input
           value={team.name}
           onChange={(e) => onChange({ ...team, name: e.target.value })}
-          className="mt-3 h-10 w-full rounded-xl border border-white/20 bg-white/10 text-center font-normal text-white/90 placeholder:font-normal placeholder:text-white/40 backdrop-blur-sm focus-visible:border-white/40 focus-visible:ring-white/40"
+          className="h-10 w-full rounded-xl border border-white/20 bg-white/10 text-center font-normal text-white/90 placeholder:font-normal placeholder:text-white/40 backdrop-blur-sm focus-visible:border-white/40 focus-visible:ring-white/40"
           placeholder={teamKey === "A" ? "Red Team" : "Blue Team"}
           maxLength={20}
         />
@@ -399,19 +433,24 @@ function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; o
       <div className="mt-3">
         <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Team Color</div>
         <div className="grid grid-cols-4 gap-1.5">
-          {TEAM_COLOR_IDS.map((c) => (
-            <button
-              key={c}
-              onClick={() => onChange({ ...team, color: c })}
-              className={cn(
-                "h-8 w-full rounded-lg border transition",
-                team.color === c ? "border-white ring-2 ring-white/80 scale-105" : "border-black/30 hover:brightness-110",
-              )}
-              style={teamSolidStyle(c)}
-              aria-label={TEAM_COLORS[c].label}
-              title={TEAM_COLORS[c].label}
-            />
-          ))}
+          {TEAM_COLOR_IDS.map((c) => {
+            const taken = c === otherColor;
+            return (
+              <button
+                key={c}
+                onClick={() => onChange({ ...team, color: c })}
+                disabled={taken}
+                className={cn(
+                  "h-8 w-full rounded-lg border transition",
+                  team.color === c ? "border-white ring-2 ring-white/80 scale-105" : "border-black/30 hover:brightness-110",
+                  taken && "opacity-30 cursor-not-allowed hover:brightness-100",
+                )}
+                style={teamSolidStyle(c)}
+                aria-label={taken ? `${TEAM_COLORS[c].label} (taken)` : TEAM_COLORS[c].label}
+                title={taken ? `${TEAM_COLORS[c].label} — used by the other team` : TEAM_COLORS[c].label}
+              />
+            );
+          })}
         </div>
       </div>
     </div>
@@ -511,9 +550,9 @@ function PlayScreen({
           const score = k === "A" ? scoreA : scoreB;
           return (
             <div key={k} className="relative overflow-hidden rounded-2xl border border-border p-3" style={teamGradientStyle(t.color)}>
-              <div className="flex items-center gap-2 text-white">
-                <TeamIcon id={t.icon} className="h-6 w-6" />
-                <div className="truncate text-sm font-bold uppercase tracking-wider">{t.name}</div>
+              <div className="flex items-start gap-2 text-white min-w-0">
+                <TeamIcon id={t.icon} className="h-6 w-6 shrink-0" />
+                <div className="min-w-0 flex-1 text-xs sm:text-sm font-bold uppercase tracking-wider break-words leading-tight">{t.name}</div>
               </div>
               <motion.div
                 key={score}
@@ -740,7 +779,7 @@ function RoundResultOverlay({ teams, info, onDone }: {
 
   return (
     <motion.div
-      className="fixed inset-0 z-40 grid place-items-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
     >
       {sparks && (
@@ -761,12 +800,12 @@ function RoundResultOverlay({ teams, info, onDone }: {
       )}
 
       <motion.div
-        initial={{ scale: 0.6, rotate: -6, opacity: 0 }}
-        animate={{ scale: 1, rotate: 0, opacity: 1 }}
+        initial={{ scale: 0.6, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 18 }}
         style={teamGradientStyle(winner.color)}
-        className={cn("relative mx-6 max-w-md rounded-3xl px-8 py-8 text-center text-white shadow-2xl", shake && "animate-shake")}
+        className={cn("relative w-full max-w-md rounded-3xl px-8 py-8 text-center text-white shadow-2xl", shake && "animate-shake")}
       >
         <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-black/30 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em]">
           <TeamIcon id={winner.icon} className="h-3.5 w-3.5" /> {winner.name}
@@ -848,12 +887,12 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
         <div className="mt-6 grid grid-cols-2 gap-3">
           <div className="rounded-2xl p-4 text-white text-center" style={teamGradientStyle(w.color)}>
             <div className="text-[10px] uppercase tracking-widest text-white/80">Winner</div>
-            <div className="truncate font-bold">{w.name}</div>
+            <div className="font-bold break-words leading-tight">{w.name}</div>
             <div className="mt-1 font-display text-4xl text-stroke-black tabular-nums">{wScore}</div>
           </div>
           <div className="rounded-2xl p-4 text-white opacity-80 text-center" style={teamGradientStyle(l.color)}>
             <div className="text-[10px] uppercase tracking-widest text-white/80">Runner-up</div>
-            <div className="truncate font-bold">{l.name}</div>
+            <div className="font-bold break-words leading-tight">{l.name}</div>
             <div className="mt-1 font-display text-4xl text-stroke-black tabular-nums">{lScore}</div>
           </div>
         </div>
