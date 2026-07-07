@@ -357,14 +357,14 @@ function SetupScreen({
   return (
     <div className="flex flex-col gap-6 p-5 pb-24">
       <header className="pt-6 text-center">
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-3">
           <span className="text-xs uppercase tracking-widest text-muted-foreground">Select Game Mode Tool:</span>
           <Select value={gameMode} onValueChange={setGameMode}>
-            <SelectTrigger className="w-full max-w-[320px] border-border bg-card text-foreground">
+            <SelectTrigger className="w-full max-w-[320px] border-border bg-card text-foreground sm:w-auto">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="vip-brawl">VIP Brawl Scorekeeper</SelectItem>
+              <SelectItem value="vip-brawl">Protect the V.I.P. ScoreKeeper</SelectItem>
               <SelectItem value="around-the-world" disabled>Around the World (coming soon)</SelectItem>
               <SelectItem value="king-of-the-character" disabled>King of the Character (coming soon)</SelectItem>
             </SelectContent>
