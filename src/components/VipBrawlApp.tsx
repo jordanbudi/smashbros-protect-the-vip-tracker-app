@@ -425,6 +425,13 @@ function SetupScreen({
       >
         <Swords className="mr-2 h-5 w-5" /> START MATCH
       </Button>
+
+      <div className="flex flex-col items-center gap-2 text-center">
+        <p className="text-xs text-muted-foreground leading-snug max-w-[260px]">
+          If you found this useful and want to keep this tool ad free, please consider supporting 😁
+        </p>
+        <BuyMeCoffeeButton />
+      </div>
     </div>
   );
 }
