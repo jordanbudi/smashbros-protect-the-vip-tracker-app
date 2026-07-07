@@ -170,18 +170,28 @@ export function VipBrawlApp() {
   async function shareResult() {
     if (!scoreRef.current) return;
     try {
-      const dataUrl = await toPng(scoreRef.current, { pixelRatio: 2, cacheBust: true, backgroundColor: "#0b0f1e" });
-      const blob = await (await fetch(dataUrl)).blob();
+      const canvas = await html2canvas(scoreRef.current, {
+        backgroundColor: "#0b0f1e",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("Failed to render image");
       const file = new File([blob], "vip-brawl-result.png", { type: "image/png" });
       const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean; share?: (d: ShareData) => Promise<void> };
       if (nav.canShare?.({ files: [file] }) && nav.share) {
         await nav.share({ files: [file], title: "VIP Brawl Results", text: "Check out our match!" });
       } else {
+        const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = dataUrl; a.download = "vip-brawl-result.png"; a.click();
+        a.href = url; a.download = "vip-brawl-result.png"; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
         toast.success("Saved screenshot");
       }
     } catch (e) {
+      const err = e as Error;
+      if (err?.name === "AbortError") return; // user cancelled share sheet
       toast.error("Couldn't share — try again");
       console.error(e);
     }
