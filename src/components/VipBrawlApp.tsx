@@ -314,28 +314,21 @@ export function VipBrawlApp() {
 }
 
 function BuyMeCoffeeButton() {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const loadedRef = useRef(false);
-
-  useEffect(() => {
-    if (!containerRef.current || loadedRef.current) return;
-    loadedRef.current = true;
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js";
-    script.setAttribute("data-name", "bmc-button");
-    script.setAttribute("data-slug", "jordanbudi");
-    script.setAttribute("data-color", "#FFDD00");
-    script.setAttribute("data-emoji", "");
-    script.setAttribute("data-font", "Cookie");
-    script.setAttribute("data-text", "Buy me a coffee?");
-    script.setAttribute("data-outline-color", "#000000");
-    script.setAttribute("data-font-color", "#000000");
-    script.setAttribute("data-coffee-color", "#ffffff");
-    script.async = true;
-    containerRef.current.appendChild(script);
-  }, []);
-
-  return <div ref={containerRef} className="flex justify-center" />;
+  return (
+    <div className="flex justify-center">
+      <a
+        href="https://www.buymeacoffee.com/jordanbudi"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 rounded-lg border border-black bg-[#FFDD00] px-5 py-2.5 text-black shadow-md transition-transform hover:scale-105"
+        style={{ fontFamily: "Cookie, cursive", fontSize: "22px", lineHeight: 1 }}
+        aria-label="Buy me a coffee"
+      >
+        <span aria-hidden="true" style={{ fontSize: "20px" }}>☕</span>
+        <span>Buy me a coffee?</span>
+      </a>
+    </div>
+  );
 }
 
 /* ---------------- Setup ---------------- */
