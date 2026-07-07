@@ -385,12 +385,12 @@ function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; o
               key={id}
               onClick={() => onChange({ ...team, icon: id })}
               className={cn(
-                "grid h-10 w-full place-items-center rounded-lg text-white transition",
+                "flex h-10 w-full items-center justify-center rounded-lg text-white transition",
                 team.icon === id ? "bg-white/30 ring-2 ring-white" : "bg-black/25 hover:bg-black/40",
               )}
               aria-label={id}
             >
-              <TeamIcon id={id} className="h-7 w-7" />
+              <TeamIcon id={id} className="h-7 w-7" style={{ display: "block" }} />
             </button>
           ))}
         </div>
