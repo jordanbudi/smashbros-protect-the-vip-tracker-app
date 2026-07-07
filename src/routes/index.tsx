@@ -6,9 +6,9 @@ export const Route = createFileRoute("/")({
   component: Index,
   head: () => ({
     meta: [
-      { title: "Smash Score – VIP Brawl Scorekeeper" },
+      { title: "Smash Score – Protect the V.I.P. ScoreKeeper" },
       { name: "description", content: "Track team scores for Super Smash Bros. Ultimate VIP brawls. VIP kills, match wins, first-blood bonuses — first to target points wins." },
-      { property: "og:title", content: "Smash Score – VIP Brawl Scorekeeper" },
+      { property: "og:title", content: "Smash Score – Protect the V.I.P. ScoreKeeper" },
       { property: "og:description", content: "Track VIP brawl team scores round by round." },
     ],
   }),

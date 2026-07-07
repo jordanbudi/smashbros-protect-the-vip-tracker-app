@@ -79,10 +79,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Smash Score – VIP Brawl Scorekeeper" },
+      { title: "Smash Score – Protect the V.I.P. ScoreKeeper" },
       { name: "description", content: "Score tracker for Super Smash Bros. Ultimate VIP brawls: two teams, one VIP each, first to the target wins." },
       { name: "author", content: "Smash Score" },
-      { property: "og:title", content: "Smash Score – VIP Brawl Scorekeeper" },
+      { property: "og:title", content: "Smash Score – Protect the V.I.P. ScoreKeeper" },
       { property: "og:description", content: "Score tracker for Super Smash Bros. Ultimate VIP brawls." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
