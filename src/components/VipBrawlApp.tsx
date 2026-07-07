@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, forwardRef, type CSSProperties } from "react";
+import { useEffect, useRef, useState, forwardRef, type CSSProperties, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import html2canvas from "html2canvas-pro";
 import { Crown, Skull, Swords, Share2, RotateCcw, Settings2, Plus, Minus, ChevronLeft, Zap, Trophy, Undo2, Redo2, X } from "lucide-react";
@@ -313,6 +313,31 @@ export function VipBrawlApp() {
   );
 }
 
+function BuyMeCoffeeButton() {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const loadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!containerRef.current || loadedRef.current) return;
+    loadedRef.current = true;
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js";
+    script.setAttribute("data-name", "bmc-button");
+    script.setAttribute("data-slug", "jordanbudi");
+    script.setAttribute("data-color", "#FFDD00");
+    script.setAttribute("data-emoji", "");
+    script.setAttribute("data-font", "Cookie");
+    script.setAttribute("data-text", "Buy me a coffee?");
+    script.setAttribute("data-outline-color", "#000000");
+    script.setAttribute("data-font-color", "#000000");
+    script.setAttribute("data-coffee-color", "#ffffff");
+    script.async = true;
+    containerRef.current.appendChild(script);
+  }, []);
+
+  return <div ref={containerRef} className="flex justify-center" />;
+}
+
 /* ---------------- Setup ---------------- */
 
 function SetupScreen({
@@ -400,6 +425,13 @@ function SetupScreen({
       >
         <Swords className="mr-2 h-5 w-5" /> START MATCH
       </Button>
+
+      <div className="flex flex-col items-center gap-2 text-center">
+        <p className="text-xs text-muted-foreground leading-snug max-w-[260px]">
+          If you found this useful and want to keep this tool ad free, please consider supporting 😁
+        </p>
+        <BuyMeCoffeeButton />
+      </div>
     </div>
   );
 }
@@ -996,6 +1028,13 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
         <p className="leading-snug">
           Tip: Add this app to your home screen for one-tap access next brawl night.
         </p>
+      </div>
+
+      <div className="relative z-10 mt-3 flex flex-col items-center gap-2 text-center">
+        <p className="text-[11px] text-muted-foreground leading-snug max-w-[260px]">
+          If you found this useful and want to keep this tool ad free, please consider supporting 😁
+        </p>
+        <BuyMeCoffeeButton />
       </div>
     </div>
   );
