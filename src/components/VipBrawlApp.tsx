@@ -922,11 +922,11 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
             transition={{ type: "spring", stiffness: 200, damping: 12 }}
             className="mx-auto mt-2"
           >
-            <div className="mx-auto grid h-32 w-32 place-items-center rounded-3xl bg-gradient-to-br from-white/10 to-white/5 p-3 ring-1 ring-white/15">
+            <div className="mx-auto grid h-32 w-32 place-items-center rounded-3xl bg-gradient-to-br from-white/10 to-white/5 p-3 ring-1 ring-white/15 aspect-square">
               <img
                 src={faviconHref}
                 alt="Smash Score"
-                className="h-28 w-28 rounded-2xl animate-pulse-glow"
+                className="h-28 w-28 rounded-2xl animate-pulse-glow object-contain aspect-square"
                 style={{ filter: "drop-shadow(0 0 16px oklch(0.82 0.17 90 / 0.6))" }}
               />
             </div>
