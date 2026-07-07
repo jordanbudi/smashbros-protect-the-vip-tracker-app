@@ -240,6 +240,8 @@ export function VipBrawlApp() {
                 setTeams={setTeams}
                 settings={settings}
                 setSettings={setSettings}
+                gameMode={gameMode}
+                setGameMode={setGameMode}
                 onStart={() => { resetGame(true); setPhase("playing"); }}
               />
             </motion.div>
