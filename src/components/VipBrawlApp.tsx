@@ -779,7 +779,7 @@ function RoundResultOverlay({ teams, info, onDone }: {
 
   return (
     <motion.div
-      className="fixed inset-0 z-40 grid place-items-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
     >
       {sparks && (
@@ -800,12 +800,12 @@ function RoundResultOverlay({ teams, info, onDone }: {
       )}
 
       <motion.div
-        initial={{ scale: 0.6, rotate: -6, opacity: 0 }}
-        animate={{ scale: 1, rotate: 0, opacity: 1 }}
+        initial={{ scale: 0.6, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 18 }}
         style={teamGradientStyle(winner.color)}
-        className={cn("relative mx-6 max-w-md rounded-3xl px-8 py-8 text-center text-white shadow-2xl", shake && "animate-shake")}
+        className={cn("relative w-full max-w-md rounded-3xl px-8 py-8 text-center text-white shadow-2xl", shake && "animate-shake")}
       >
         <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-black/30 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em]">
           <TeamIcon id={winner.icon} className="h-3.5 w-3.5" /> {winner.name}
