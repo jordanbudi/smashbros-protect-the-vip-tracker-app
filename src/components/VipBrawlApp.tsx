@@ -169,6 +169,9 @@ export function VipBrawlApp() {
 
   async function shareResult() {
     if (!scoreRef.current) return;
+    const APP_URL = "https://jordanbudi.github.io/smashbros-protect-the-vip-tracker-app";
+    const shareTitle = "Results of Smash the VIP!";
+    const shareText = `Results of Smash the VIP! ${APP_URL}`;
     try {
       const canvas = await html2canvas(scoreRef.current, {
         backgroundColor: "#0b0f1e",
@@ -181,17 +184,30 @@ export function VipBrawlApp() {
       const file = new File([blob], "vip-brawl-result.png", { type: "image/png" });
       const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean; share?: (d: ShareData) => Promise<void> };
       if (nav.canShare?.({ files: [file] }) && nav.share) {
-        await nav.share({ files: [file], title: "VIP Brawl Results", text: "Check out our match!" });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url; a.download = "vip-brawl-result.png"; a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        toast.success("Saved screenshot");
+        try {
+          await nav.share({ files: [file], title: shareTitle, text: shareText, url: APP_URL });
+          return;
+        } catch (err) {
+          if ((err as Error)?.name === "AbortError") return;
+          // fall through to text-only share / download
+        }
       }
+      if (nav.share) {
+        try {
+          await nav.share({ title: shareTitle, text: shareText, url: APP_URL });
+          return;
+        } catch (err) {
+          if ((err as Error)?.name === "AbortError") return;
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "vip-brawl-result.png"; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Saved screenshot");
     } catch (e) {
       const err = e as Error;
-      if (err?.name === "AbortError") return; // user cancelled share sheet
+      if (err?.name === "AbortError") return;
       toast.error("Couldn't share — try again");
       console.error(e);
     }
@@ -846,75 +862,99 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
   const wScore = winner === "A" ? scoreA : scoreB;
   const lScore = winner === "A" ? scoreB : scoreA;
 
+  const confettiColors = ["#ff3b3b", "#3b82ff", "#ffd93b", "#3bffb0", "#c33bff", "#ff8a3b", "#ffffff"];
+  const shapes: Array<"square" | "rect" | "circle"> = ["square", "rect", "circle"];
+  const faviconHref = `${import.meta.env.BASE_URL}favicon.png?v=2`;
+
   return (
-    <div className="relative flex min-h-[100dvh] flex-col p-5 pb-24">
+    <div className="relative flex min-h-[100dvh] flex-col p-4 pb-6">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        {Array.from({ length: 80 }).map((_, i) => (
-          <span
-            key={i}
-            className="absolute top-0 h-2 w-2 rounded-sm"
-            style={{
-              left: `${Math.random() * 100}%`,
-              background: ["#ff3b3b", "#3b82ff", "#ffd93b", "#3bffb0", "#c33bff"][i % 5],
-              animation: `confetti-fall ${3 + Math.random() * 3}s ${Math.random() * 2}s linear infinite`,
-              transform: `rotate(${Math.random() * 360}deg)`,
-            }}
-          />
-        ))}
+        {Array.from({ length: 140 }).map((_, i) => {
+          const shape = shapes[i % shapes.length];
+          const size = 6 + Math.random() * 10;
+          const width = shape === "rect" ? size * 0.5 : size;
+          const height = shape === "rect" ? size * 1.4 : size;
+          const color = confettiColors[i % confettiColors.length];
+          return (
+            <span
+              key={i}
+              className="absolute top-0"
+              style={{
+                left: `${Math.random() * 100}%`,
+                width: `${width}px`,
+                height: `${height}px`,
+                background: color,
+                borderRadius: shape === "circle" ? "50%" : shape === "rect" ? "1px" : "2px",
+                animation: `confetti-fall ${3 + Math.random() * 3}s ${Math.random() * 3}s linear infinite`,
+                transform: `rotate(${Math.random() * 360}deg)`,
+                opacity: 0.85,
+                boxShadow: `0 0 6px ${color}55`,
+              }}
+            />
+          );
+        })}
       </div>
 
-      <div ref={ref} className="relative rounded-3xl border border-border bg-card/80 p-6 backdrop-blur">
+      <div ref={ref} className="relative rounded-2xl border border-border bg-card/80 p-4 backdrop-blur">
         <div className="text-center">
-          <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground animate-pulse-glow" style={teamGradientStyle("gold")}>
-            <Trophy className="h-3.5 w-3.5" /> Champion
+          <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground animate-pulse-glow" style={teamGradientStyle("gold")}>
+            <Trophy className="h-3 w-3" /> Champion
           </div>
           <motion.div
             initial={{ scale: 0.4, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", stiffness: 200, damping: 12 }}
-            className="mx-auto mt-4"
+            className="mx-auto mt-2"
           >
-            <div className="mx-auto grid h-32 w-32 place-items-center rounded-3xl text-white" style={teamGradientStyle(w.color)}>
-              <TeamIcon id={w.icon} className="h-20 w-20 animate-pulse-glow" />
+            <div className="mx-auto grid h-20 w-20 place-items-center rounded-2xl text-white" style={teamGradientStyle(w.color)}>
+              <TeamIcon id={w.icon} className="h-14 w-14 animate-pulse-glow" />
             </div>
           </motion.div>
-          <h1 className="mt-4 font-display text-5xl text-stroke-black">
+          <h1 className="mt-2 font-display text-3xl leading-none text-stroke-black [overflow-wrap:anywhere]">
             {w.name.toUpperCase()}
           </h1>
-          <p className="mt-1 text-sm uppercase tracking-widest text-muted-foreground">Takes the crown</p>
+          <p className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">Takes the crown</p>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl p-4 text-white text-center" style={teamGradientStyle(w.color)}>
-            <div className="text-[10px] uppercase tracking-widest text-white/80">Winner</div>
-            <div className="font-bold break-words leading-tight">{w.name}</div>
-            <div className="mt-1 font-display text-4xl text-stroke-black tabular-nums">{wScore}</div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-xl p-2.5 text-white text-center" style={teamGradientStyle(w.color)}>
+            <div className="text-[9px] uppercase tracking-widest text-white/80">Winner</div>
+            <div className="text-xs font-bold leading-tight [overflow-wrap:anywhere] hyphens-auto">{w.name}</div>
+            <div className="mt-0.5 font-display text-3xl text-stroke-black tabular-nums leading-none">{wScore}</div>
           </div>
-          <div className="rounded-2xl p-4 text-white opacity-80 text-center" style={teamGradientStyle(l.color)}>
-            <div className="text-[10px] uppercase tracking-widest text-white/80">Runner-up</div>
-            <div className="font-bold break-words leading-tight">{l.name}</div>
-            <div className="mt-1 font-display text-4xl text-stroke-black tabular-nums">{lScore}</div>
+          <div className="rounded-xl p-2.5 text-white opacity-80 text-center" style={teamGradientStyle(l.color)}>
+            <div className="text-[9px] uppercase tracking-widest text-white/80">Runner-up</div>
+            <div className="text-xs font-bold leading-tight [overflow-wrap:anywhere] hyphens-auto">{l.name}</div>
+            <div className="mt-0.5 font-display text-3xl text-stroke-black tabular-nums leading-none">{lScore}</div>
           </div>
         </div>
 
-        <div className="mt-4 rounded-2xl bg-muted/40 p-3 text-center">
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Rounds played</div>
-          <div className="mt-1 font-display text-2xl">{history.length}</div>
+        <div className="mt-2 rounded-xl bg-muted/40 px-3 py-1.5 text-center">
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Rounds played</div>
+          <div className="font-display text-lg leading-tight">{history.length}</div>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-2">
-        <Button onClick={onShare} className="h-12 rounded-xl font-display tracking-widest text-primary-foreground hover:brightness-110" style={teamGradientStyle("gold")}>
+      <div className="mt-3 grid gap-2">
+        <Button onClick={onShare} className="h-11 rounded-xl font-display tracking-widest text-primary-foreground hover:brightness-110" style={teamGradientStyle("gold")}>
           <Share2 className="mr-2 h-4 w-4" /> SHARE RESULT
         </Button>
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="secondary" onClick={onRematch} className="h-11 rounded-xl">
+          <Button variant="secondary" onClick={onRematch} className="h-10 rounded-xl">
             <RotateCcw className="mr-2 h-4 w-4" /> Rematch
           </Button>
-          <Button variant="outline" onClick={onNewSetup} className="h-11 rounded-xl">
+          <Button variant="outline" onClick={onNewSetup} className="h-10 rounded-xl">
             New setup
           </Button>
         </div>
+      </div>
+
+      {/* Home-screen tip — intentionally outside the screenshot ref */}
+      <div className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-card/60 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">
+        <img src={faviconHref} alt="" className="h-6 w-6 shrink-0 rounded-md" />
+        <p className="leading-snug">
+          Tip: Add this app to your home screen for one-tap access next brawl night.
+        </p>
       </div>
     </div>
   );
