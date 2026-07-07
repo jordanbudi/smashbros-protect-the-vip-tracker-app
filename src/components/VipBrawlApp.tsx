@@ -170,8 +170,8 @@ export function VipBrawlApp() {
   async function shareResult() {
     if (!scoreRef.current) return;
     const APP_URL = "https://jordanbudi.github.io/smashbros-protect-the-vip-tracker-app";
-    const shareTitle = "Results of Smash the VIP!";
-    const shareText = `Results of Smash the VIP! ${APP_URL}`;
+    const shareTitle = "Results of Protect the VIP!";
+    const shareText = `Results of Protect the VIP! ${APP_URL}`;
     try {
       const canvas = await html2canvas(scoreRef.current, {
         backgroundColor: "#0b0f1e",
@@ -922,12 +922,12 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
             transition={{ type: "spring", stiffness: 200, damping: 12 }}
             className="mx-auto mt-2"
           >
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-white/10 to-white/5 p-2 ring-1 ring-white/15">
+            <div className="mx-auto grid h-32 w-32 place-items-center rounded-3xl bg-gradient-to-br from-white/10 to-white/5 p-3 ring-1 ring-white/15">
               <img
                 src={faviconHref}
                 alt="Smash Score"
-                className="h-16 w-16 rounded-xl animate-pulse-glow"
-                style={{ filter: "drop-shadow(0 0 12px oklch(0.82 0.17 90 / 0.55))" }}
+                className="h-28 w-28 rounded-2xl animate-pulse-glow"
+                style={{ filter: "drop-shadow(0 0 16px oklch(0.82 0.17 90 / 0.6))" }}
               />
             </div>
           </motion.div>
@@ -944,7 +944,7 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
           >
             {w.name.toUpperCase()}
           </motion.h1>
-          <p className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">Takes the crown</p>
+          
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
