@@ -550,9 +550,9 @@ function PlayScreen({
           const score = k === "A" ? scoreA : scoreB;
           return (
             <div key={k} className="relative overflow-hidden rounded-2xl border border-border p-3" style={teamGradientStyle(t.color)}>
-              <div className="flex items-center gap-2 text-white">
-                <TeamIcon id={t.icon} className="h-6 w-6" />
-                <div className="truncate text-sm font-bold uppercase tracking-wider">{t.name}</div>
+              <div className="flex items-start gap-2 text-white min-w-0">
+                <TeamIcon id={t.icon} className="h-6 w-6 shrink-0" />
+                <div className="min-w-0 flex-1 text-xs sm:text-sm font-bold uppercase tracking-wider break-words leading-tight">{t.name}</div>
               </div>
               <motion.div
                 key={score}
