@@ -116,6 +116,10 @@
   0%, 100% { filter: drop-shadow(0 0 8px currentColor); }
   50% { filter: drop-shadow(0 0 24px currentColor); }
 }
+@keyframes rays-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
 
 .animate-shake { animation: shake 0.5s ease-in-out; }
 .animate-pulse-glow { animation: pulse-glow 1.6s ease-in-out infinite; }
