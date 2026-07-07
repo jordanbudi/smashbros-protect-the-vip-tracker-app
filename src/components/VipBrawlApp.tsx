@@ -169,6 +169,9 @@ export function VipBrawlApp() {
 
   async function shareResult() {
     if (!scoreRef.current) return;
+    const APP_URL = "https://jordanbudi.github.io/smashbros-protect-the-vip-tracker-app";
+    const shareTitle = "Results of Smash the VIP!";
+    const shareText = `Results of Smash the VIP! ${APP_URL}`;
     try {
       const canvas = await html2canvas(scoreRef.current, {
         backgroundColor: "#0b0f1e",
@@ -181,17 +184,30 @@ export function VipBrawlApp() {
       const file = new File([blob], "vip-brawl-result.png", { type: "image/png" });
       const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean; share?: (d: ShareData) => Promise<void> };
       if (nav.canShare?.({ files: [file] }) && nav.share) {
-        await nav.share({ files: [file], title: "VIP Brawl Results", text: "Check out our match!" });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url; a.download = "vip-brawl-result.png"; a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        toast.success("Saved screenshot");
+        try {
+          await nav.share({ files: [file], title: shareTitle, text: shareText, url: APP_URL });
+          return;
+        } catch (err) {
+          if ((err as Error)?.name === "AbortError") return;
+          // fall through to text-only share / download
+        }
       }
+      if (nav.share) {
+        try {
+          await nav.share({ title: shareTitle, text: shareText, url: APP_URL });
+          return;
+        } catch (err) {
+          if ((err as Error)?.name === "AbortError") return;
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "vip-brawl-result.png"; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Saved screenshot");
     } catch (e) {
       const err = e as Error;
-      if (err?.name === "AbortError") return; // user cancelled share sheet
+      if (err?.name === "AbortError") return;
       toast.error("Couldn't share — try again");
       console.error(e);
     }
