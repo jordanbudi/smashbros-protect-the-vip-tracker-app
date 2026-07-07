@@ -388,7 +388,7 @@ function SetupScreen({
   );
 }
 
-function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; onChange: (t: Team) => void }) {
+function TeamCard({ teamKey, team, otherColor, onChange }: { teamKey: TeamKey; team: Team; otherColor: TeamColor; onChange: (t: Team) => void }) {
   return (
     <div
       className="relative flex flex-col overflow-hidden rounded-2xl border border-border p-4"
@@ -401,10 +401,11 @@ function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; o
         <div className="mt-2 flex h-24 w-24 items-center justify-center rounded-2xl bg-black/25 text-white">
           <TeamIcon id={team.icon} className="h-16 w-16" style={{ display: "block" }} />
         </div>
+        <div className="mt-3 mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Name Your Team</div>
         <Input
           value={team.name}
           onChange={(e) => onChange({ ...team, name: e.target.value })}
-          className="mt-3 h-10 w-full rounded-xl border border-white/20 bg-white/10 text-center font-normal text-white/90 placeholder:font-normal placeholder:text-white/40 backdrop-blur-sm focus-visible:border-white/40 focus-visible:ring-white/40"
+          className="h-10 w-full rounded-xl border border-white/20 bg-white/10 text-center font-normal text-white/90 placeholder:font-normal placeholder:text-white/40 backdrop-blur-sm focus-visible:border-white/40 focus-visible:ring-white/40"
           placeholder={teamKey === "A" ? "Red Team" : "Blue Team"}
           maxLength={20}
         />
@@ -432,19 +433,24 @@ function TeamCard({ teamKey, team, onChange }: { teamKey: TeamKey; team: Team; o
       <div className="mt-3">
         <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Team Color</div>
         <div className="grid grid-cols-4 gap-1.5">
-          {TEAM_COLOR_IDS.map((c) => (
-            <button
-              key={c}
-              onClick={() => onChange({ ...team, color: c })}
-              className={cn(
-                "h-8 w-full rounded-lg border transition",
-                team.color === c ? "border-white ring-2 ring-white/80 scale-105" : "border-black/30 hover:brightness-110",
-              )}
-              style={teamSolidStyle(c)}
-              aria-label={TEAM_COLORS[c].label}
-              title={TEAM_COLORS[c].label}
-            />
-          ))}
+          {TEAM_COLOR_IDS.map((c) => {
+            const taken = c === otherColor;
+            return (
+              <button
+                key={c}
+                onClick={() => onChange({ ...team, color: c })}
+                disabled={taken}
+                className={cn(
+                  "h-8 w-full rounded-lg border transition",
+                  team.color === c ? "border-white ring-2 ring-white/80 scale-105" : "border-black/30 hover:brightness-110",
+                  taken && "opacity-30 cursor-not-allowed hover:brightness-100",
+                )}
+                style={teamSolidStyle(c)}
+                aria-label={taken ? `${TEAM_COLORS[c].label} (taken)` : TEAM_COLORS[c].label}
+                title={taken ? `${TEAM_COLORS[c].label} — used by the other team` : TEAM_COLORS[c].label}
+              />
+            );
+          })}
         </div>
       </div>
     </div>
