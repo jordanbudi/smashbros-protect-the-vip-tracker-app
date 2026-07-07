@@ -366,7 +366,7 @@ function SetupScreen({
             <SelectContent>
               <SelectItem value="vip-brawl">Protect the V.I.P. ScoreKeeper</SelectItem>
               <SelectItem value="around-the-world" disabled>Around the World (coming soon)</SelectItem>
-              <SelectItem value="king-of-the-character" disabled>King of the Character (coming soon)</SelectItem>
+              <SelectItem value="king-of-the-character" disabled>The Clone Wars (coming soon)</SelectItem>
             </SelectContent>
           </Select>
         </div>
