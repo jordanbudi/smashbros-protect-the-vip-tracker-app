@@ -344,19 +344,31 @@ function BuyMeCoffeeButton() {
 /* ---------------- Setup ---------------- */
 
 function SetupScreen({
-  teams, setTeams, settings, setSettings, onStart,
+  teams, setTeams, settings, setSettings, gameMode, setGameMode, onStart,
 }: {
   teams: Record<TeamKey, Team>;
   setTeams: (t: Record<TeamKey, Team>) => void;
   settings: Settings;
   setSettings: (s: Settings) => void;
+  gameMode: string;
+  setGameMode: (v: string) => void;
   onStart: () => void;
 }) {
   return (
     <div className="flex flex-col gap-6 p-5 pb-24">
       <header className="pt-6 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1 text-xs uppercase tracking-widest text-muted-foreground">
-          <Zap className="h-3.5 w-3.5" /> Special Super Smash Bros. Mode Scorekeeper
+        <div className="flex flex-col items-center gap-2">
+          <span className="text-xs uppercase tracking-widest text-muted-foreground">Select Game Mode Tool:</span>
+          <Select value={gameMode} onValueChange={setGameMode}>
+            <SelectTrigger className="w-full max-w-[320px] border-border bg-card text-foreground">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="vip-brawl">VIP Brawl Scorekeeper</SelectItem>
+              <SelectItem value="around-the-world" disabled>Around the World (coming soon)</SelectItem>
+              <SelectItem value="king-of-the-character" disabled>King of the Character (coming soon)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <h1 className="mt-3 font-display text-4xl leading-none text-stroke-black sm:text-5xl">
           <span style={{ color: teamTextColor(teams.A.color) }}>PROTECT THE</span>{" "}
