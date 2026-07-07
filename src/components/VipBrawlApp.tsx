@@ -323,8 +323,31 @@ function SetupScreen({
 
       {/* Side-by-side team cards */}
       <div className="grid grid-cols-2 gap-3">
-        <TeamCard teamKey="A" team={teams.A} onChange={(t) => setTeams({ ...teams, A: t })} />
-        <TeamCard teamKey="B" team={teams.B} onChange={(t) => setTeams({ ...teams, B: t })} />
+        <TeamCard
+          teamKey="A"
+          team={teams.A}
+          otherColor={teams.B.color}
+          onChange={(t) => {
+            // If picking the other team's color, swap
+            if (t.color !== teams.A.color && t.color === teams.B.color) {
+              setTeams({ A: t, B: { ...teams.B, color: teams.A.color } });
+            } else {
+              setTeams({ ...teams, A: t });
+            }
+          }}
+        />
+        <TeamCard
+          teamKey="B"
+          team={teams.B}
+          otherColor={teams.A.color}
+          onChange={(t) => {
+            if (t.color !== teams.B.color && t.color === teams.A.color) {
+              setTeams({ A: { ...teams.A, color: teams.B.color }, B: t });
+            } else {
+              setTeams({ ...teams, B: t });
+            }
+          }}
+        />
       </div>
       <div className="-my-3 flex items-center justify-center">
         <div className="rounded-full border border-border bg-card px-4 py-1 font-display text-sm tracking-widest text-muted-foreground">VS</div>
