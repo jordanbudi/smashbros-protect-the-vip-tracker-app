@@ -98,6 +98,7 @@ function loadState<T>(key: string, fallback: T): T {
 
 export function VipBrawlApp() {
   const [phase, setPhase] = useState<"setup" | "playing" | "winner">("setup");
+  const [gameMode, setGameMode] = useState("vip-brawl");
   const [teams, setTeams] = useState<Record<TeamKey, Team>>(() => loadState("vb.teams", DEFAULT_TEAMS));
   const [settings, setSettings] = useState<Settings>(() => loadState("vb.settings", DEFAULTS));
   const [scoreA, setScoreA] = useState(0);
