@@ -1073,10 +1073,12 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
   const faviconHref = `${import.meta.env.BASE_URL}favicon.png?v=2`;
 
   const winnerTokens = TEAM_COLORS[w.color];
-  const raysBg = `repeating-conic-gradient(from 0deg at 50% 50%, ${winnerTokens.glow} 0deg 6deg, transparent 6deg 18deg)`;
-  const raysBgAlt = `repeating-conic-gradient(from 0deg at 50% 50%, ${winnerTokens.base} 0deg 4deg, transparent 4deg 22deg)`;
-  const washBg = `radial-gradient(ellipse at 50% 45%, ${winnerTokens.glow} 0%, ${winnerTokens.base} 25%, ${winnerTokens.deep} 55%, transparent 80%)`;
-  const burstBg = `radial-gradient(circle, ${winnerTokens.glow} 0%, ${winnerTokens.base} 30%, transparent 70%)`;
+  // Solid sunburst wedges: alternate bright base and darker deep, no transparency (comic-book style)
+  const raysBg = `repeating-conic-gradient(from 0deg at 50% 50%, ${winnerTokens.base} 0deg 12deg, ${winnerTokens.deep} 12deg 24deg)`;
+  // Center bloom that fades wedges toward a hot glow at the middle
+  const centerBloom = `radial-gradient(circle at 50% 50%, ${winnerTokens.glow} 0%, ${winnerTokens.glow} 6%, transparent 40%)`;
+  // Dark vignette so corners feel deep
+  const vignette = `radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.55) 80%, rgba(0,0,0,0.85) 100%)`;
 
   const podiumCols =
     teams.length === 2 ? "grid-cols-2" :
@@ -1085,32 +1087,25 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
 
   return (
     <div className="relative flex min-h-[100dvh] flex-col p-4 pb-6 overflow-hidden">
-      {/* Deep color wash tinted to winner */}
+      {/* Solid sunburst wedges filling the whole screen */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[220vmax] w-[220vmax] -translate-x-1/2 -translate-y-1/2"
+        style={{ background: raysBg, animation: "rays-spin 60s linear infinite" }}
+      />
+      {/* Hot center bloom */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 z-0"
-        style={{ background: washBg, animation: "wash-pulse 3.2s ease-in-out infinite" }}
+        style={{ background: centerBloom, animation: "wash-pulse 3.2s ease-in-out infinite", mixBlendMode: "screen" }}
       />
-      {/* Primary spinning rays */}
+      {/* Corner vignette for depth */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[220vmax] w-[220vmax] -translate-x-1/2 -translate-y-1/2 opacity-70 mix-blend-screen"
-        style={{ background: raysBg, animation: "rays-spin 18s linear infinite" }}
+        className="pointer-events-none absolute inset-0 z-0"
+        style={{ background: vignette }}
       />
-      {/* Counter-spinning finer rays for parallax */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[220vmax] w-[220vmax] -translate-x-1/2 -translate-y-1/2 opacity-40 mix-blend-screen"
-        style={{ background: raysBgAlt, animation: "rays-spin-reverse 24s linear infinite" }}
-      />
-      {/* Pulsing central burst */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-[38%] z-0 h-[80vmin] w-[80vmin]"
-        style={{ background: burstBg, borderRadius: "50%", filter: "blur(20px)", animation: "burst-pulse 2.4s ease-out infinite" }}
-      />
-      {/* Vignette to keep content readable */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.55)_75%,rgba(0,0,0,0.85)_100%)]" />
+
 
 
       <div className="pointer-events-none fixed inset-0 z-30 overflow-hidden">
