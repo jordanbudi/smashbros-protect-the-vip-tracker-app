@@ -120,9 +120,24 @@
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to { transform: translate(-50%, -50%) rotate(360deg); }
 }
+@keyframes rays-spin-reverse {
+  from { transform: translate(-50%, -50%) rotate(360deg) scale(1); }
+  50%  { transform: translate(-50%, -50%) rotate(180deg) scale(1.08); }
+  to   { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+}
+@keyframes wash-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.9;  transform: scale(1.08); }
+}
+@keyframes burst-pulse {
+  0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(0.6); }
+  70%  { opacity: 0;   transform: translate(-50%, -50%) scale(2.2); }
+  100% { opacity: 0;   transform: translate(-50%, -50%) scale(2.2); }
+}
 
 .animate-shake { animation: shake 0.5s ease-in-out; }
 .animate-pulse-glow { animation: pulse-glow 1.6s ease-in-out infinite; }
+
 
 /* No scrollbar for horizontal icon picker */
 .no-scrollbar::-webkit-scrollbar { display: none; }
