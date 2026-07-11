@@ -1088,29 +1088,29 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
       {/* Deep color wash tinted to winner */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-20"
+        className="pointer-events-none absolute inset-0 z-0"
         style={{ background: washBg, animation: "wash-pulse 3.2s ease-in-out infinite" }}
       />
       {/* Primary spinning rays */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[220vmax] w-[220vmax] -translate-x-1/2 -translate-y-1/2 opacity-70 mix-blend-screen"
+        className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[220vmax] w-[220vmax] -translate-x-1/2 -translate-y-1/2 opacity-70 mix-blend-screen"
         style={{ background: raysBg, animation: "rays-spin 18s linear infinite" }}
       />
       {/* Counter-spinning finer rays for parallax */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[220vmax] w-[220vmax] -translate-x-1/2 -translate-y-1/2 opacity-40 mix-blend-screen"
+        className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[220vmax] w-[220vmax] -translate-x-1/2 -translate-y-1/2 opacity-40 mix-blend-screen"
         style={{ background: raysBgAlt, animation: "rays-spin-reverse 24s linear infinite" }}
       />
       {/* Pulsing central burst */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-[38%] -z-10 h-[80vmin] w-[80vmin]"
+        className="pointer-events-none absolute left-1/2 top-[38%] z-0 h-[80vmin] w-[80vmin]"
         style={{ background: burstBg, borderRadius: "50%", filter: "blur(20px)", animation: "burst-pulse 2.4s ease-out infinite" }}
       />
       {/* Vignette to keep content readable */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.55)_75%,rgba(0,0,0,0.85)_100%)]" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.55)_75%,rgba(0,0,0,0.85)_100%)]" />
 
 
       <div className="pointer-events-none fixed inset-0 z-30 overflow-hidden">
