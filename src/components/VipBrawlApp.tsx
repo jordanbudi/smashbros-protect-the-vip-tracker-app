@@ -1138,7 +1138,7 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
         })}
       </div>
 
-      <div ref={ref} className="relative z-10 rounded-2xl border border-border bg-card/80 p-4 backdrop-blur">
+      <div ref={ref} className="relative z-10 rounded-2xl border border-border bg-card/65 p-4 backdrop-blur">
         <div className="text-center">
           <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground animate-pulse-glow" style={teamGradientStyle("gold")}>
             <Trophy className="h-3 w-3" /> Champion
