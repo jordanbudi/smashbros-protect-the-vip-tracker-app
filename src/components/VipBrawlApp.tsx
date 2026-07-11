@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, forwardRef, type CSSProperties, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, forwardRef, type CSSProperties } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import html2canvas from "html2canvas-pro";
-import { Crown, Skull, Swords, Share2, RotateCcw, Settings2, Plus, Minus, ChevronLeft, Zap, Trophy, Undo2, Redo2, X } from "lucide-react";
+import { Crown, Skull, Swords, Share2, RotateCcw, Settings2, Plus, Minus, ChevronLeft, Zap, Trophy, Undo2, Redo2, X, Flame } from "lucide-react";
 import { TeamIcon, ICON_IDS, type IconId } from "@/components/TeamIcon";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-
-type TeamKey = "A" | "B";
 
 export type TeamColor = "red" | "blue" | "green" | "purple" | "orange" | "pink" | "teal" | "gold";
 
@@ -50,10 +48,13 @@ function teamTextColor(color: TeamColor): string {
 }
 
 interface Team {
+  id: string;
   name: string;
   icon: IconId;
   color: TeamColor;
 }
+
+type TeamCount = 2 | 3 | 4;
 
 interface Settings {
   vipKillPoints: number;
@@ -61,16 +62,15 @@ interface Settings {
   firstVipBonusPoints: number;
   targetScore: number;
   firstVipMode: boolean;
+  teamCount: TeamCount;
 }
 
 interface RoundEntry {
   round: number;
-  matchWinner: TeamKey;
-  vipKilledA: boolean; // Team A killed team B's VIP
-  vipKilledB: boolean; // Team B killed team A's VIP
-  firstVipKiller: TeamKey | null;
-  deltaA: number;
-  deltaB: number;
+  matchWinnerId: string;
+  vipKillerIds: string[];      // teams that killed a VIP this round
+  firstVipKillerId: string | null;
+  deltas: Record<string, number>;
 }
 
 const DEFAULTS: Settings = {
@@ -79,78 +79,143 @@ const DEFAULTS: Settings = {
   firstVipBonusPoints: 1,
   targetScore: 15,
   firstVipMode: true,
+  teamCount: 2,
 };
 
-const DEFAULT_TEAMS: Record<TeamKey, Team> = {
-  A: { name: "Red Team", icon: "mario", color: "red" },
-  B: { name: "Blue Team", icon: "link", color: "blue" },
-};
+const DEFAULT_TEAM_SLOTS: Team[] = [
+  { id: "t1", name: "Red Team",    icon: "mario",  color: "red" },
+  { id: "t2", name: "Blue Team",   icon: "link",   color: "blue" },
+  { id: "t3", name: "Green Team",  icon: "yoshi",  color: "green" },
+  { id: "t4", name: "Purple Team", icon: "kirby",  color: "purple" },
+];
 
-function loadState<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
+const STORAGE_KEY_TEAMS = "vb.teams.v2";
+const STORAGE_KEY_SETTINGS = "vb.settings";
+
+function loadTeams(): Team[] {
+  if (typeof window === "undefined") return DEFAULT_TEAM_SLOTS.slice(0, 4);
   try {
-    const raw = localStorage.getItem(key);
-    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+    const raw = localStorage.getItem(STORAGE_KEY_TEAMS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length >= 2) {
+        // Fill up to 4 with defaults if fewer were saved
+        const out = [...parsed];
+        for (let i = out.length; i < 4; i++) out.push(DEFAULT_TEAM_SLOTS[i]);
+        return out.slice(0, 4);
+      }
+    }
+    // Legacy migration from vb.teams (A/B object)
+    const legacyRaw = localStorage.getItem("vb.teams");
+    if (legacyRaw) {
+      const legacy = JSON.parse(legacyRaw);
+      if (legacy && typeof legacy === "object" && "A" in legacy && "B" in legacy) {
+        const migrated: Team[] = [
+          { id: "t1", ...legacy.A },
+          { id: "t2", ...legacy.B },
+          DEFAULT_TEAM_SLOTS[2],
+          DEFAULT_TEAM_SLOTS[3],
+        ];
+        return migrated;
+      }
+    }
   } catch {
-    return fallback;
+    // fall through
   }
+  return DEFAULT_TEAM_SLOTS.slice(0, 4);
+}
+
+function loadSettings(): Settings {
+  if (typeof window === "undefined") return DEFAULTS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SETTINGS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const merged = { ...DEFAULTS, ...parsed };
+      if (![2, 3, 4].includes(merged.teamCount)) merged.teamCount = 2;
+      return merged;
+    }
+  } catch {
+    // fall through
+  }
+  return DEFAULTS;
 }
 
 export function VipBrawlApp() {
   const [phase, setPhase] = useState<"setup" | "playing" | "winner">("setup");
   const [gameMode, setGameMode] = useState("vip-brawl");
-  const [teams, setTeams] = useState<Record<TeamKey, Team>>(() => loadState("vb.teams", DEFAULT_TEAMS));
-  const [settings, setSettings] = useState<Settings>(() => loadState("vb.settings", DEFAULTS));
-  const [scoreA, setScoreA] = useState(0);
-  const [scoreB, setScoreB] = useState(0);
+  const [allTeams, setAllTeams] = useState<Team[]>(() => loadTeams());
+  const [settings, setSettings] = useState<Settings>(() => loadSettings());
+  const [scores, setScores] = useState<Record<string, number>>({});
   const [history, setHistory] = useState<RoundEntry[]>([]);
   const [redoStack, setRedoStack] = useState<RoundEntry[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [pendingAnim, setPendingAnim] = useState<null | RoundAnimInfo>(null);
   const [winnerPending, setWinnerPending] = useState(false);
   const [selectedRound, setSelectedRound] = useState<RoundEntry | null>(null);
+  const [suddenDeath, setSuddenDeath] = useState(false);
 
-  useEffect(() => { localStorage.setItem("vb.teams", JSON.stringify(teams)); }, [teams]);
-  useEffect(() => { localStorage.setItem("vb.settings", JSON.stringify(settings)); }, [settings]);
+  const activeTeams = useMemo(() => allTeams.slice(0, settings.teamCount), [allTeams, settings.teamCount]);
+
+  useEffect(() => { localStorage.setItem(STORAGE_KEY_TEAMS, JSON.stringify(allTeams)); }, [allTeams]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings)); }, [settings]);
 
   const scoreRef = useRef<HTMLDivElement | null>(null);
 
   function resetGame(keepTeams = true) {
-    setScoreA(0); setScoreB(0); setHistory([]); setRedoStack([]);
+    const fresh: Record<string, number> = {};
+    activeTeams.forEach((t) => (fresh[t.id] = 0));
+    setScores(fresh);
+    setHistory([]); setRedoStack([]);
+    setSuddenDeath(false);
     setPhase(keepTeams ? "playing" : "setup");
   }
 
   function submitRound(input: {
-    matchWinner: TeamKey;
-    vipKilledA: boolean;
-    vipKilledB: boolean;
-    firstVipKiller: TeamKey | null;
+    matchWinnerId: string;
+    vipKillerIds: string[];
+    firstVipKillerId: string | null;
   }) {
-    const { matchWinner, vipKilledA, vipKilledB, firstVipKiller } = input;
-    let deltaA = 0, deltaB = 0;
-    if (vipKilledA) deltaA += settings.vipKillPoints;
-    if (vipKilledB) deltaB += settings.vipKillPoints;
-    if (matchWinner === "A") deltaA += settings.matchWinPoints; else deltaB += settings.matchWinPoints;
-    if (settings.firstVipMode && firstVipKiller) {
-      if (firstVipKiller === "A") deltaA += settings.firstVipBonusPoints;
-      else deltaB += settings.firstVipBonusPoints;
+    const { matchWinnerId, vipKillerIds, firstVipKillerId } = input;
+    const deltas: Record<string, number> = {};
+    activeTeams.forEach((t) => (deltas[t.id] = 0));
+    vipKillerIds.forEach((id) => { deltas[id] = (deltas[id] || 0) + settings.vipKillPoints; });
+    deltas[matchWinnerId] = (deltas[matchWinnerId] || 0) + settings.matchWinPoints;
+    if (settings.firstVipMode && firstVipKillerId) {
+      deltas[firstVipKillerId] = (deltas[firstVipKillerId] || 0) + settings.firstVipBonusPoints;
     }
-    const newA = scoreA + deltaA;
-    const newB = scoreB + deltaB;
+
+    const newScores: Record<string, number> = { ...scores };
+    activeTeams.forEach((t) => { newScores[t.id] = (newScores[t.id] || 0) + (deltas[t.id] || 0); });
+
     const entry: RoundEntry = {
       round: history.length + 1,
-      matchWinner, vipKilledA, vipKilledB, firstVipKiller,
-      deltaA, deltaB,
+      matchWinnerId,
+      vipKillerIds,
+      firstVipKillerId,
+      deltas,
     };
     setHistory((h) => [...h, entry]);
-    setRedoStack([]); // new action clears redo
-    setScoreA(newA); setScoreB(newB);
+    setRedoStack([]);
+    setScores(newScores);
 
-    setPendingAnim(buildAnimInfo(entry, deltaA, deltaB));
+    setPendingAnim(buildAnimInfo(entry, activeTeams, settings));
 
+    // End-of-round evaluation
     const target = settings.targetScore;
-    if (newA >= target || newB >= target) {
+    const sorted = [...activeTeams]
+      .map((t) => ({ id: t.id, score: newScores[t.id] || 0 }))
+      .sort((a, b) => b.score - a.score);
+    const top = sorted[0];
+    const second = sorted[1];
+    if (top.score >= target && top.score > (second?.score ?? -Infinity)) {
       setWinnerPending(true);
+      setSuddenDeath(false);
+    } else if (top.score >= target && second && top.score === second.score) {
+      // Tie at or above target → sudden death
+      setSuddenDeath(true);
+    } else {
+      setSuddenDeath(false);
     }
   }
 
@@ -159,9 +224,13 @@ export function VipBrawlApp() {
     const last = history[history.length - 1];
     setHistory((h) => h.slice(0, -1));
     setRedoStack((r) => [...r, last]);
-    setScoreA((s) => s - last.deltaA);
-    setScoreB((s) => s - last.deltaB);
+    setScores((s) => {
+      const next = { ...s };
+      activeTeams.forEach((t) => { next[t.id] = (next[t.id] || 0) - (last.deltas[t.id] || 0); });
+      return next;
+    });
     setPendingAnim(null);
+    setSuddenDeath(false);
     toast("Round undone", { description: `R${last.round} rolled back` });
   }
 
@@ -170,8 +239,11 @@ export function VipBrawlApp() {
     const next = redoStack[redoStack.length - 1];
     setRedoStack((r) => r.slice(0, -1));
     setHistory((h) => [...h, next]);
-    setScoreA((s) => s + next.deltaA);
-    setScoreB((s) => s + next.deltaB);
+    setScores((s) => {
+      const nx = { ...s };
+      activeTeams.forEach((t) => { nx[t.id] = (nx[t.id] || 0) + (next.deltas[t.id] || 0); });
+      return nx;
+    });
     toast("Round restored", { description: `R${next.round} back in play` });
   }
 
@@ -197,7 +269,6 @@ export function VipBrawlApp() {
           return;
         } catch (err) {
           if ((err as Error)?.name === "AbortError") return;
-          // fall through to text-only share / download
         }
       }
       if (nav.share) {
@@ -221,14 +292,39 @@ export function VipBrawlApp() {
     }
   }
 
-  const winnerKey: TeamKey | null = phase === "winner" ? (scoreA >= scoreB ? "A" : "B") : null;
+  // Compute winner (highest score); only meaningful when phase === "winner"
+  const winnerId: string | null = useMemo(() => {
+    if (phase !== "winner") return null;
+    const sorted = [...activeTeams].map((t) => ({ id: t.id, s: scores[t.id] || 0 })).sort((a, b) => b.s - a.s);
+    return sorted[0]?.id ?? null;
+  }, [phase, scores, activeTeams]);
+
+  function updateTeamAt(index: number, updated: Team) {
+    setAllTeams((prev) => {
+      const next = [...prev];
+      // Color-swap: if updated.color is used by another active slot, swap
+      const oldColor = next[index].color;
+      if (updated.color !== oldColor) {
+        for (let i = 0; i < settings.teamCount; i++) {
+          if (i !== index && next[i].color === updated.color) {
+            next[i] = { ...next[i], color: oldColor };
+            break;
+          }
+        }
+      }
+      next[index] = updated;
+      return next;
+    });
+  }
+
+  const bgColorA = activeTeams[0]?.color ?? "red";
+  const bgColorB = activeTeams[activeTeams.length - 1]?.color ?? "blue";
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden bg-background text-foreground">
-      {/* Ambient background — uses the two teams' actual colors */}
       <div aria-hidden className="pointer-events-none fixed inset-0 opacity-60">
-        <div className="absolute -top-32 -left-24 h-80 w-80 rounded-full blur-3xl opacity-30" style={teamGradientStyle(teams.A.color)} />
-        <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full blur-3xl opacity-30" style={teamGradientStyle(teams.B.color)} />
+        <div className="absolute -top-32 -left-24 h-80 w-80 rounded-full blur-3xl opacity-30" style={teamGradientStyle(bgColorA)} />
+        <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full blur-3xl opacity-30" style={teamGradientStyle(bgColorB)} />
       </div>
 
       <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-3xl flex-col">
@@ -236,8 +332,9 @@ export function VipBrawlApp() {
           {phase === "setup" && (
             <motion.div key="setup" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
               <SetupScreen
-                teams={teams}
-                setTeams={setTeams}
+                allTeams={allTeams}
+                activeTeams={activeTeams}
+                updateTeamAt={updateTeamAt}
                 settings={settings}
                 setSettings={setSettings}
                 gameMode={gameMode}
@@ -249,11 +346,11 @@ export function VipBrawlApp() {
           {phase === "playing" && (
             <motion.div key="play" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <PlayScreen
-                teams={teams}
+                teams={activeTeams}
                 settings={settings}
-                scoreA={scoreA}
-                scoreB={scoreB}
+                scores={scores}
                 history={history}
+                suddenDeath={suddenDeath}
                 canUndo={history.length > 0}
                 canRedo={redoStack.length > 0}
                 onUndo={undo}
@@ -265,14 +362,13 @@ export function VipBrawlApp() {
               />
             </motion.div>
           )}
-          {phase === "winner" && winnerKey && (
+          {phase === "winner" && winnerId && (
             <motion.div key="win" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <WinnerScreen
                 ref={scoreRef}
-                teams={teams}
-                winner={winnerKey}
-                scoreA={scoreA}
-                scoreB={scoreB}
+                teams={activeTeams}
+                winnerId={winnerId}
+                scores={scores}
                 history={history}
                 onShare={shareResult}
                 onRematch={() => resetGame(true)}
@@ -287,7 +383,7 @@ export function VipBrawlApp() {
         {pendingAnim && (
           <RoundResultOverlay
             key="anim"
-            teams={teams}
+            teams={activeTeams}
             info={pendingAnim}
             onDone={() => {
               setPendingAnim(null);
@@ -304,7 +400,8 @@ export function VipBrawlApp() {
         {selectedRound && (
           <RoundDetailModal
             round={selectedRound}
-            teams={teams}
+            teams={activeTeams}
+            settings={settings}
             onClose={() => setSelectedRound(null)}
           />
         )}
@@ -344,16 +441,26 @@ function BuyMeCoffeeButton() {
 /* ---------------- Setup ---------------- */
 
 function SetupScreen({
-  teams, setTeams, settings, setSettings, gameMode, setGameMode, onStart,
+  allTeams, activeTeams, updateTeamAt, settings, setSettings, gameMode, setGameMode, onStart,
 }: {
-  teams: Record<TeamKey, Team>;
-  setTeams: (t: Record<TeamKey, Team>) => void;
+  allTeams: Team[];
+  activeTeams: Team[];
+  updateTeamAt: (index: number, t: Team) => void;
   settings: Settings;
   setSettings: (s: Settings) => void;
   gameMode: string;
   setGameMode: (v: string) => void;
   onStart: () => void;
 }) {
+  const teamCount = settings.teamCount;
+  const titleColorA = activeTeams[0]?.color ?? "red";
+  const titleColorB = activeTeams[activeTeams.length - 1]?.color ?? "blue";
+
+  const gridCols =
+    teamCount === 2 ? "grid-cols-2" :
+    teamCount === 3 ? "grid-cols-2 sm:grid-cols-3" :
+    "grid-cols-2";
+
   return (
     <div className="flex flex-col gap-6 p-5 pb-24">
       <header className="pt-6 text-center">
@@ -371,43 +478,56 @@ function SetupScreen({
           </Select>
         </div>
         <h1 className="mt-3 font-display text-4xl leading-none text-stroke-black sm:text-5xl">
-          <span style={{ color: teamTextColor(teams.A.color) }}>PROTECT THE</span>{" "}
-          <span style={{ color: teamTextColor(teams.B.color) }}>V.I.P.</span>
+          <span style={{ color: teamTextColor(titleColorA) }}>PROTECT THE</span>{" "}
+          <span style={{ color: teamTextColor(titleColorB) }}>V.I.P.</span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">Each Team has One VIP that is set to 300% damage. Earn points for knocking out the opponents VIP, and/or knocking out their VIP before your team&apos;s VIP. First to <span className="text-yellow-400 text-[1.05em] font-semibold">{settings.targetScore}</span> points win.</p>
       </header>
 
-      {/* Side-by-side team cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <TeamCard
-          teamKey="A"
-          team={teams.A}
-          otherColor={teams.B.color}
-          onChange={(t) => {
-            // If picking the other team's color, swap
-            if (t.color !== teams.A.color && t.color === teams.B.color) {
-              setTeams({ A: t, B: { ...teams.B, color: teams.A.color } });
-            } else {
-              setTeams({ ...teams, A: t });
-            }
-          }}
-        />
-        <TeamCard
-          teamKey="B"
-          team={teams.B}
-          otherColor={teams.A.color}
-          onChange={(t) => {
-            if (t.color !== teams.B.color && t.color === teams.A.color) {
-              setTeams({ A: { ...teams.A, color: teams.B.color }, B: t });
-            } else {
-              setTeams({ ...teams, B: t });
-            }
-          }}
-        />
+      {/* Team count selector */}
+      <div className="flex items-center justify-center gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Teams:</span>
+        <div className="inline-flex rounded-full border border-border bg-card p-1">
+          {([2, 3, 4] as TeamCount[]).map((n) => (
+            <button
+              key={n}
+              onClick={() => setSettings({ ...settings, teamCount: n })}
+              className={cn(
+                "px-4 py-1 rounded-full text-sm font-display tracking-widest transition",
+                settings.teamCount === n ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="-my-3 flex items-center justify-center">
-        <div className="rounded-full border border-border bg-card px-4 py-1 font-display text-sm tracking-widest text-muted-foreground">VS</div>
+
+      <div className={cn("grid gap-3", gridCols)}>
+        {activeTeams.map((team, i) => {
+          const otherColors = activeTeams.filter((_, j) => j !== i).map((t) => t.color);
+          return (
+            <TeamCard
+              key={team.id}
+              slotIndex={i}
+              team={team}
+              otherColors={otherColors}
+              onChange={(t) => updateTeamAt(i, t)}
+            />
+          );
+        })}
       </div>
+
+      {teamCount === 2 && (
+        <div className="-my-3 flex items-center justify-center">
+          <div className="rounded-full border border-border bg-card px-4 py-1 font-display text-sm tracking-widest text-muted-foreground">VS</div>
+        </div>
+      )}
+      {teamCount > 2 && (
+        <div className="-my-3 flex items-center justify-center">
+          <div className="rounded-full border border-border bg-card px-4 py-1 font-display text-sm tracking-widest text-muted-foreground">FREE-FOR-ALL</div>
+        </div>
+      )}
 
       <section className="rounded-2xl border border-border bg-card/70 p-4">
         <div className="flex items-center gap-2 pb-3">
@@ -422,7 +542,7 @@ function SetupScreen({
           <label className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2">
             <div>
               <div className="text-sm font-medium">First VIP down bonus</div>
-              <div className="text-xs text-muted-foreground">Reward whoever kills the enemy VIP first.</div>
+              <div className="text-xs text-muted-foreground">Reward whoever kills a VIP first.</div>
             </div>
             <Switch checked={settings.firstVipMode} onCheckedChange={(v) => setSettings({ ...settings, firstVipMode: v })} />
           </label>
@@ -451,7 +571,8 @@ function SetupScreen({
   );
 }
 
-function TeamCard({ teamKey, team, otherColor, onChange }: { teamKey: TeamKey; team: Team; otherColor: TeamColor; onChange: (t: Team) => void }) {
+function TeamCard({ slotIndex, team, otherColors, onChange }: { slotIndex: number; team: Team; otherColors: TeamColor[]; onChange: (t: Team) => void }) {
+  const otherColorSet = new Set(otherColors);
   return (
     <div
       className="relative flex flex-col overflow-hidden rounded-2xl border border-border p-4"
@@ -460,7 +581,7 @@ function TeamCard({ teamKey, team, otherColor, onChange }: { teamKey: TeamKey; t
       <div className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
 
       <div className="flex flex-col items-center">
-        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Team {teamKey}</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Team {slotIndex + 1}</div>
         <div className="mt-2 flex h-24 w-24 items-center justify-center rounded-2xl bg-black/25 text-white">
           <TeamIcon id={team.icon} className="h-16 w-16" style={{ display: "block" }} />
         </div>
@@ -469,7 +590,7 @@ function TeamCard({ teamKey, team, otherColor, onChange }: { teamKey: TeamKey; t
           value={team.name}
           onChange={(e) => onChange({ ...team, name: e.target.value })}
           className="h-10 w-full rounded-xl border border-white/20 bg-white/10 text-center font-normal text-white/90 placeholder:font-normal placeholder:text-white/40 backdrop-blur-sm focus-visible:border-white/40 focus-visible:ring-white/40"
-          placeholder={teamKey === "A" ? "Red Team" : "Blue Team"}
+          placeholder={DEFAULT_TEAM_SLOTS[slotIndex]?.name ?? `Team ${slotIndex + 1}`}
           maxLength={20}
         />
       </div>
@@ -497,20 +618,19 @@ function TeamCard({ teamKey, team, otherColor, onChange }: { teamKey: TeamKey; t
         <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Team Color</div>
         <div className="grid grid-cols-4 gap-1.5">
           {TEAM_COLOR_IDS.map((c) => {
-            const taken = c === otherColor;
+            const taken = otherColorSet.has(c);
             return (
               <button
                 key={c}
                 onClick={() => onChange({ ...team, color: c })}
-                disabled={taken}
                 className={cn(
                   "h-8 w-full rounded-lg border transition",
                   team.color === c ? "border-white ring-2 ring-white/80 scale-105" : "border-black/30 hover:brightness-110",
-                  taken && "opacity-30 cursor-not-allowed hover:brightness-100",
+                  taken && team.color !== c && "opacity-40",
                 )}
                 style={teamSolidStyle(c)}
-                aria-label={taken ? `${TEAM_COLORS[c].label} (taken)` : TEAM_COLORS[c].label}
-                title={taken ? `${TEAM_COLORS[c].label} — used by the other team` : TEAM_COLORS[c].label}
+                aria-label={taken ? `${TEAM_COLORS[c].label} (will swap)` : TEAM_COLORS[c].label}
+                title={taken ? `${TEAM_COLORS[c].label} — tap to swap with the other team` : TEAM_COLORS[c].label}
               />
             );
           })}
@@ -546,45 +666,57 @@ function NumberRow({ label, value, onChange, min = 0, max = 99, disabled }: {
 /* ---------------- Play ---------------- */
 
 function PlayScreen({
-  teams, settings, scoreA, scoreB, history, canUndo, canRedo, onUndo, onRedo, onBack, onOpenSettings, onSubmitRound, onRoundClick,
+  teams, settings, scores, history, suddenDeath, canUndo, canRedo, onUndo, onRedo, onBack, onOpenSettings, onSubmitRound, onRoundClick,
 }: {
-  teams: Record<TeamKey, Team>;
+  teams: Team[];
   settings: Settings;
-  scoreA: number;
-  scoreB: number;
+  scores: Record<string, number>;
   history: RoundEntry[];
+  suddenDeath: boolean;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
   onBack: () => void;
   onOpenSettings: () => void;
-  onSubmitRound: (i: { matchWinner: TeamKey; vipKilledA: boolean; vipKilledB: boolean; firstVipKiller: TeamKey | null }) => void;
+  onSubmitRound: (i: { matchWinnerId: string; vipKillerIds: string[]; firstVipKillerId: string | null }) => void;
   onRoundClick: (r: RoundEntry) => void;
 }) {
-  const [vipKilledA, setVipKilledA] = useState(false);
-  const [vipKilledB, setVipKilledB] = useState(false);
-  const [firstVipKiller, setFirstVipKiller] = useState<TeamKey | null>(null);
-  const [matchWinner, setMatchWinner] = useState<TeamKey | null>(null);
+  const [vipKillerIds, setVipKillerIds] = useState<string[]>([]);
+  const [firstVipKillerId, setFirstVipKillerId] = useState<string | null>(null);
+  const [matchWinnerId, setMatchWinnerId] = useState<string | null>(null);
 
+  // Auto-manage first VIP killer based on selection
   useEffect(() => {
-    if (!settings.firstVipMode) { setFirstVipKiller(null); return; }
-    if (firstVipKiller === "A" && !vipKilledA) setFirstVipKiller(null);
-    if (firstVipKiller === "B" && !vipKilledB) setFirstVipKiller(null);
-    // Auto-pick when only one team got a VIP kill
-    if (vipKilledA && !vipKilledB) setFirstVipKiller("A");
-    else if (vipKilledB && !vipKilledA) setFirstVipKiller("B");
-  }, [vipKilledA, vipKilledB, settings.firstVipMode, firstVipKiller]);
+    if (!settings.firstVipMode) { setFirstVipKillerId(null); return; }
+    if (vipKillerIds.length === 0) { setFirstVipKillerId(null); return; }
+    if (vipKillerIds.length === 1) { setFirstVipKillerId(vipKillerIds[0]); return; }
+    if (firstVipKillerId && !vipKillerIds.includes(firstVipKillerId)) setFirstVipKillerId(null);
+  }, [vipKillerIds, settings.firstVipMode, firstVipKillerId]);
 
-  const canSubmit = matchWinner !== null && (!settings.firstVipMode || !(vipKilledA && vipKilledB) || firstVipKiller !== null);
+  const needsFirstVipPick = settings.firstVipMode && vipKillerIds.length >= 2;
+  const canSubmit = matchWinnerId !== null && (!needsFirstVipPick || firstVipKillerId !== null);
+
+  function toggleKiller(id: string) {
+    setVipKillerIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  }
 
   function submit() {
-    if (!matchWinner) return;
-    onSubmitRound({ matchWinner, vipKilledA, vipKilledB, firstVipKiller: settings.firstVipMode ? firstVipKiller : null });
-    setVipKilledA(false); setVipKilledB(false); setFirstVipKiller(null); setMatchWinner(null);
+    if (!matchWinnerId) return;
+    onSubmitRound({
+      matchWinnerId,
+      vipKillerIds,
+      firstVipKillerId: settings.firstVipMode ? firstVipKillerId : null,
+    });
+    setVipKillerIds([]); setFirstVipKillerId(null); setMatchWinnerId(null);
   }
 
   const progress = (v: number) => Math.min(100, (v / settings.targetScore) * 100);
+
+  const scoreGridCols =
+    teams.length === 2 ? "grid-cols-2" :
+    teams.length === 3 ? "grid-cols-3" :
+    "grid-cols-2";
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-28">
@@ -606,13 +738,19 @@ function PlayScreen({
         </div>
       </div>
 
+      {suddenDeath && (
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-yellow-400/50 bg-yellow-400/10 px-3 py-2 text-yellow-300">
+          <Flame className="h-4 w-4" />
+          <span className="font-display text-sm tracking-widest">SUDDEN DEATH — tied at the target, play on!</span>
+        </div>
+      )}
+
       {/* Scoreboard */}
-      <div className="grid grid-cols-2 gap-3">
-        {(["A", "B"] as TeamKey[]).map((k) => {
-          const t = teams[k];
-          const score = k === "A" ? scoreA : scoreB;
+      <div className={cn("grid gap-3", scoreGridCols)}>
+        {teams.map((t) => {
+          const score = scores[t.id] || 0;
           return (
-            <div key={k} className="relative overflow-hidden rounded-2xl border border-border p-3" style={teamGradientStyle(t.color)}>
+            <div key={t.id} className="relative overflow-hidden rounded-2xl border border-border p-3" style={teamGradientStyle(t.color)}>
               <div className="flex items-start gap-2 text-white min-w-0">
                 <TeamIcon id={t.icon} className="h-6 w-6 shrink-0" />
                 <div className="min-w-0 flex-1 text-xs sm:text-sm font-bold uppercase tracking-wider break-words leading-tight">{t.name}</div>
@@ -621,7 +759,8 @@ function PlayScreen({
                 key={score}
                 initial={{ scale: 1.4, opacity: 0.4 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="mt-1 font-display text-6xl tabular-nums leading-none text-white text-stroke-black"
+                className={cn("mt-1 font-display tabular-nums leading-none text-white text-stroke-black",
+                  teams.length >= 3 ? "text-4xl" : "text-6xl")}
               >
                 {score}
               </motion.div>
@@ -638,64 +777,58 @@ function PlayScreen({
         <h3 className="font-display text-sm tracking-widest text-muted-foreground">LOG THIS ROUND</h3>
 
         <div className="mt-3">
-          <Label>VIP kills</Label>
-          <div className="mt-1 grid grid-cols-2 gap-2">
-            <ToggleTile
-              active={vipKilledA} color={teams.A.color}
-              onClick={() => setVipKilledA((v) => !v)}
-              icon={<Skull className="h-4 w-4" />}
-              label={`${teams.A.name} killed VIP`}
-              sub={`+${settings.vipKillPoints}`}
-            />
-            <ToggleTile
-              active={vipKilledB} color={teams.B.color}
-              onClick={() => setVipKilledB((v) => !v)}
-              icon={<Skull className="h-4 w-4" />}
-              label={`${teams.B.name} killed VIP`}
-              sub={`+${settings.vipKillPoints}`}
-            />
+          <Label>VIP kills <span className="text-muted-foreground/70 normal-case tracking-normal">— tap every team that killed a VIP</span></Label>
+          <div className={cn("mt-1 grid gap-2", teams.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
+            {teams.map((t) => (
+              <IconToggleTile
+                key={t.id}
+                active={vipKillerIds.includes(t.id)}
+                color={t.color}
+                onClick={() => toggleKiller(t.id)}
+                icon={<TeamIcon id={t.icon} className="h-8 w-8" />}
+                badge={<Skull className="h-3.5 w-3.5" />}
+                label={t.name}
+                sub={`+${settings.vipKillPoints}`}
+              />
+            ))}
           </div>
         </div>
 
-        {settings.firstVipMode && vipKilledA && vipKilledB && (
+        {needsFirstVipPick && (
           <div className="mt-4">
-            <Label>Who killed the VIP first?</Label>
-            <div className="mt-1 grid grid-cols-2 gap-2">
-              <ToggleTile
-                active={firstVipKiller === "A"} color={teams.A.color}
-                onClick={() => setFirstVipKiller("A")}
-                icon={<Zap className="h-4 w-4" />}
-                label={teams.A.name}
-                sub={`+${settings.firstVipBonusPoints} first blood`}
-              />
-              <ToggleTile
-                active={firstVipKiller === "B"} color={teams.B.color}
-                onClick={() => setFirstVipKiller("B")}
-                icon={<Zap className="h-4 w-4" />}
-                label={teams.B.name}
-                sub={`+${settings.firstVipBonusPoints} first blood`}
-              />
+            <Label>Who killed the first VIP?</Label>
+            <div className={cn("mt-1 grid gap-2", vipKillerIds.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
+              {teams.filter((t) => vipKillerIds.includes(t.id)).map((t) => (
+                <IconToggleTile
+                  key={t.id}
+                  active={firstVipKillerId === t.id}
+                  color={t.color}
+                  onClick={() => setFirstVipKillerId(t.id)}
+                  icon={<TeamIcon id={t.icon} className="h-8 w-8" />}
+                  badge={<Zap className="h-3.5 w-3.5" />}
+                  label={t.name}
+                  sub={`+${settings.firstVipBonusPoints} first blood`}
+                />
+              ))}
             </div>
           </div>
         )}
 
         <div className="mt-4">
           <Label>Match winner</Label>
-          <div className="mt-1 grid grid-cols-2 gap-2">
-            <ToggleTile
-              active={matchWinner === "A"} color={teams.A.color}
-              onClick={() => setMatchWinner("A")}
-              icon={<Crown className="h-4 w-4" />}
-              label={teams.A.name}
-              sub={`+${settings.matchWinPoints}`}
-            />
-            <ToggleTile
-              active={matchWinner === "B"} color={teams.B.color}
-              onClick={() => setMatchWinner("B")}
-              icon={<Crown className="h-4 w-4" />}
-              label={teams.B.name}
-              sub={`+${settings.matchWinPoints}`}
-            />
+          <div className={cn("mt-1 grid gap-2", teams.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
+            {teams.map((t) => (
+              <IconToggleTile
+                key={t.id}
+                active={matchWinnerId === t.id}
+                color={t.color}
+                onClick={() => setMatchWinnerId(t.id)}
+                icon={<TeamIcon id={t.icon} className="h-8 w-8" />}
+                badge={<Crown className="h-3.5 w-3.5" />}
+                label={t.name}
+                sub={`+${settings.matchWinPoints}`}
+              />
+            ))}
           </div>
         </div>
 
@@ -713,26 +846,31 @@ function PlayScreen({
         <div className="rounded-2xl border border-border bg-card/70 p-4">
           <h3 className="font-display text-sm tracking-widest text-muted-foreground">HISTORY</h3>
           <ul className="mt-2 divide-y divide-border/50">
-            {history.slice().reverse().map((r) => (
-              <li key={r.round}>
-                <button
-                  onClick={() => onRoundClick(r)}
-                  className="flex w-full items-center justify-between py-2 text-sm text-left hover:bg-muted/30 rounded-md px-1 -mx-1 transition"
-                >
-                  <span className="text-muted-foreground">R{r.round}</span>
-                  <span className="flex-1 truncate px-2">
-                    {teams[r.matchWinner].name} won
-                    {r.vipKilledA && ` · ${teams.A.name} VIP kill`}
-                    {r.vipKilledB && ` · ${teams.B.name} VIP kill`}
-                  </span>
-                  <span className="font-display tabular-nums">
-                    <span style={{ color: teamTextColor(teams.A.color) }}>+{r.deltaA}</span>
-                    {" / "}
-                    <span style={{ color: teamTextColor(teams.B.color) }}>+{r.deltaB}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
+            {history.slice().reverse().map((r) => {
+              const winner = teams.find((t) => t.id === r.matchWinnerId);
+              return (
+                <li key={r.round}>
+                  <button
+                    onClick={() => onRoundClick(r)}
+                    className="flex w-full items-center justify-between py-2 text-sm text-left hover:bg-muted/30 rounded-md px-1 -mx-1 transition"
+                  >
+                    <span className="text-muted-foreground">R{r.round}</span>
+                    <span className="flex-1 truncate px-2">
+                      {winner?.name ?? "Team"} won
+                      {r.vipKillerIds.length > 0 && ` · ${r.vipKillerIds.length} VIP kill${r.vipKillerIds.length === 1 ? "" : "s"}`}
+                    </span>
+                    <span className="font-display tabular-nums whitespace-nowrap">
+                      {teams.map((t, i) => (
+                        <span key={t.id}>
+                          {i > 0 && <span className="text-muted-foreground">/</span>}
+                          <span style={{ color: teamTextColor(t.color) }}>+{r.deltas[t.id] || 0}</span>
+                        </span>
+                      ))}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -744,8 +882,8 @@ function Label({ children }: { children: React.ReactNode }) {
   return <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{children}</div>;
 }
 
-function ToggleTile({ active, color, onClick, icon, label, sub, disabled }: {
-  active: boolean; color: TeamColor; onClick: () => void; icon: React.ReactNode; label: string; sub: string; disabled?: boolean;
+function IconToggleTile({ active, color, onClick, icon, badge, label, sub, disabled }: {
+  active: boolean; color: TeamColor; onClick: () => void; icon: React.ReactNode; badge?: React.ReactNode; label: string; sub: string; disabled?: boolean;
 }) {
   return (
     <button
@@ -753,64 +891,63 @@ function ToggleTile({ active, color, onClick, icon, label, sub, disabled }: {
       disabled={disabled}
       style={active ? teamGradientStyle(color) : undefined}
       className={cn(
-        "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition overflow-hidden w-full",
+        "relative flex flex-col items-center gap-1 rounded-xl border p-3 text-center transition overflow-hidden w-full",
         active ? "border-transparent text-white" : "border-border bg-muted/40 text-foreground hover:bg-muted",
         disabled && "opacity-40",
       )}
     >
-      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider min-w-0 w-full">
-        <span className="shrink-0">{icon}</span>
-        <span className="[overflow-wrap:anywhere] hyphens-auto leading-tight">{label}</span>
+      <div className="flex items-center justify-center">
+        <span className={cn("shrink-0 grid place-items-center", active ? "text-white" : "text-foreground")}>{icon}</span>
       </div>
-      <div className={cn("font-display text-sm tabular-nums", active ? "text-white/90" : "text-muted-foreground")}>{sub}</div>
+      {badge && (
+        <span className={cn("absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full",
+          active ? "bg-black/40 text-white" : "bg-background text-muted-foreground border border-border")}>
+          {badge}
+        </span>
+      )}
+      <div className="mt-0.5 text-[11px] font-bold uppercase tracking-wider leading-tight [overflow-wrap:anywhere] w-full">{label}</div>
+      <div className={cn("font-display text-xs tabular-nums", active ? "text-white/90" : "text-muted-foreground")}>{sub}</div>
     </button>
   );
 }
 
 /* ---------------- Round result overlay ---------------- */
 
-type RoundTier = "flawless" | "martyred" | "winIsWin" | "clean" | "grind";
+type RoundTier = "flawless" | "martyred" | "winIsWin" | "clean" | "grind" | "ffa";
 
 interface RoundAnimInfo {
-  winnerKey: TeamKey;
-  loserKey: TeamKey;
+  winnerId: string;
   tier: RoundTier;
   firstBlood: boolean;
-  deltaWinner: number;
-  loserGained: number;
+  deltas: Record<string, number>;
+  // Only for N=2 narrative
+  loserId?: string;
 }
 
-function buildAnimInfo(entry: RoundEntry, deltaA: number, deltaB: number): RoundAnimInfo {
-  const winnerKey = entry.matchWinner;
-  const loserKey: TeamKey = winnerKey === "A" ? "B" : "A";
-  const winnerKilledLoserVip = winnerKey === "A" ? entry.vipKilledA : entry.vipKilledB;
-  const winnerVipDied = winnerKey === "A" ? entry.vipKilledB : entry.vipKilledA;
-  const firstBlood = entry.firstVipKiller === winnerKey;
+function buildAnimInfo(entry: RoundEntry, teams: Team[], _settings: Settings): RoundAnimInfo {
+  const winnerId = entry.matchWinnerId;
+  const firstBlood = entry.firstVipKillerId === winnerId;
 
-  // Determine tier per user's exact permutations
-  let tier: RoundTier;
-  if (winnerKilledLoserVip && firstBlood && !winnerVipDied) {
-    tier = "flawless";               // Flawless Extraction
-  } else if (winnerKilledLoserVip && firstBlood && winnerVipDied) {
-    tier = "martyred";               // Martyred Victory
-  } else if (entry.firstVipKiller === loserKey) {
-    tier = "winIsWin";               // A Win Is a Win (their VIP fell first, we still won)
-  } else if (winnerKilledLoserVip && !winnerVipDied) {
-    tier = "clean";                  // clean win — killed their VIP, ours survived, but not first blood
-  } else {
-    tier = "grind";                  // grind win — pure match points
+  if (teams.length === 2) {
+    const loser = teams.find((t) => t.id !== winnerId);
+    const loserId = loser?.id ?? "";
+    const winnerKilledLoserVip = entry.vipKillerIds.includes(winnerId);
+    const winnerVipDied = entry.vipKillerIds.includes(loserId);
+
+    let tier: RoundTier;
+    if (winnerKilledLoserVip && firstBlood && !winnerVipDied) tier = "flawless";
+    else if (winnerKilledLoserVip && firstBlood && winnerVipDied) tier = "martyred";
+    else if (entry.firstVipKillerId === loserId) tier = "winIsWin";
+    else if (winnerKilledLoserVip && !winnerVipDied) tier = "clean";
+    else tier = "grind";
+
+    return { winnerId, loserId, tier, firstBlood, deltas: entry.deltas };
   }
-
-  return {
-    winnerKey, loserKey, tier,
-    firstBlood,
-    deltaWinner: winnerKey === "A" ? deltaA : deltaB,
-    loserGained: winnerKey === "A" ? deltaB : deltaA,
-  };
+  return { winnerId, tier: "ffa", firstBlood, deltas: entry.deltas };
 }
 
 function RoundResultOverlay({ teams, info, onDone }: {
-  teams: Record<TeamKey, Team>;
+  teams: Team[];
   info: RoundAnimInfo;
   onDone: () => void;
 }) {
@@ -819,8 +956,8 @@ function RoundResultOverlay({ teams, info, onDone }: {
     return () => clearTimeout(t);
   }, [onDone]);
 
-  const winner = teams[info.winnerKey];
-  const loser = teams[info.loserKey];
+  const winner = teams.find((t) => t.id === info.winnerId)!;
+  const loser = info.loserId ? teams.find((t) => t.id === info.loserId) : undefined;
 
   const headlineMap: Record<RoundTier, string> = {
     flawless: "FLAWLESS EXTRACTION",
@@ -828,17 +965,20 @@ function RoundResultOverlay({ teams, info, onDone }: {
     winIsWin: "A WIN IS A WIN",
     clean: "CLEAN WIN",
     grind: "GRIND WIN",
+    ffa: "ROUND WON",
   };
   const subMap: Record<RoundTier, string> = {
-    flawless: `${winner.name} wins, killed ${loser.name} VIP first, ${winner.name} VIP survives.`,
-    martyred: `${winner.name} wins, killed ${loser.name} VIP first, but ${winner.name} VIP does not make it out alive.`,
+    flawless: `${winner.name} wins, killed ${loser?.name ?? "the"} VIP first, ${winner.name} VIP survives.`,
+    martyred: `${winner.name} wins, killed ${loser?.name ?? "the"} VIP first, but ${winner.name} VIP does not make it out alive.`,
     winIsWin: `${winner.name} VIP dies first, but ${winner.name} still wins.`,
     clean: `${winner.name} takes the match and their VIP walks away.`,
     grind: `${winner.name} grinds out the win on match points alone.`,
+    ffa: `${winner.name} takes the round.`,
   };
 
   const sparks = info.tier === "flawless" || info.tier === "martyred";
   const shake = info.tier === "grind" || info.tier === "winIsWin";
+  const deltaWinner = info.deltas[winner.id] || 0;
 
   return (
     <motion.div
@@ -877,7 +1017,7 @@ function RoundResultOverlay({ teams, info, onDone }: {
         <div className="mt-3 text-sm text-white/90">{subMap[info.tier]}</div>
 
         <div className="mt-5 flex items-baseline justify-center gap-2">
-          <span className="font-display text-6xl text-stroke-black">+{info.deltaWinner}</span>
+          <span className="font-display text-6xl text-stroke-black">+{deltaWinner}</span>
           <span className="text-xs uppercase tracking-widest text-white/70">pts</span>
         </div>
 
@@ -887,8 +1027,20 @@ function RoundResultOverlay({ teams, info, onDone }: {
           </div>
         )}
 
-        {info.loserGained > 0 && (
-          <div className="mt-3 text-xs text-white/70">{loser.name} still scored +{info.loserGained}</div>
+        {teams.length > 2 && (
+          <div className="mt-4 grid grid-cols-1 gap-1.5 rounded-xl bg-black/25 p-2">
+            {teams.filter((t) => t.id !== winner.id).map((t) => (
+              <div key={t.id} className="flex items-center gap-2 text-xs">
+                <TeamIcon id={t.icon} className="h-4 w-4 shrink-0" />
+                <span className="flex-1 text-left truncate text-white/90">{t.name}</span>
+                <span className="font-display tabular-nums text-white/90">+{info.deltas[t.id] || 0}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {teams.length === 2 && loser && (info.deltas[loser.id] || 0) > 0 && (
+          <div className="mt-3 text-xs text-white/70">{loser.name} still scored +{info.deltas[loser.id] || 0}</div>
         )}
       </motion.div>
     </motion.div>
@@ -898,28 +1050,29 @@ function RoundResultOverlay({ teams, info, onDone }: {
 /* ---------------- Winner screen ---------------- */
 
 const WinnerScreen = forwardRef<HTMLDivElement, {
-  teams: Record<TeamKey, Team>;
-  winner: TeamKey;
-  scoreA: number; scoreB: number;
+  teams: Team[];
+  winnerId: string;
+  scores: Record<string, number>;
   history: RoundEntry[];
   onShare: () => void; onRematch: () => void; onNewSetup: () => void;
-}>(function WinnerScreen({ teams, winner, scoreA, scoreB, history, onShare, onRematch, onNewSetup }, ref) {
-  const w = teams[winner];
-  const l = teams[winner === "A" ? "B" : "A"];
-  const wScore = winner === "A" ? scoreA : scoreB;
-  const lScore = winner === "A" ? scoreB : scoreA;
+}>(function WinnerScreen({ teams, winnerId, scores, history, onShare, onRematch, onNewSetup }, ref) {
+  const w = teams.find((t) => t.id === winnerId)!;
+  const sorted = [...teams].map((t) => ({ team: t, score: scores[t.id] || 0 })).sort((a, b) => b.score - a.score);
 
   const confettiColors = ["#ff3b3b", "#3b82ff", "#ffd93b", "#3bffb0", "#c33bff", "#ff8a3b", "#ffffff"];
   const shapes: Array<"square" | "rect" | "circle"> = ["square", "rect", "circle"];
   const faviconHref = `${import.meta.env.BASE_URL}favicon.png?v=2`;
 
-  // Radial rays gradient — sunburst behind everything (like a "GAME!" splash)
   const winnerTokens = TEAM_COLORS[w.color];
   const raysBg = `repeating-conic-gradient(from 0deg at 50% 50%, ${winnerTokens.deep} 0deg 8deg, ${winnerTokens.base} 8deg 16deg)`;
 
+  const podiumCols =
+    teams.length === 2 ? "grid-cols-2" :
+    teams.length === 3 ? "grid-cols-3" :
+    "grid-cols-2";
+
   return (
     <div className="relative flex min-h-[100dvh] flex-col p-4 pb-6 overflow-hidden">
-      {/* Spiraling rays background */}
       <div
         aria-hidden
         className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[220vmax] w-[220vmax] -translate-x-1/2 -translate-y-1/2 opacity-40"
@@ -927,7 +1080,6 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
       />
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/40 via-background/70 to-background" />
 
-      {/* Confetti — foreground layer, staggered so pieces aren't all bunched at the top */}
       <div className="pointer-events-none fixed inset-0 z-30 overflow-hidden">
         {Array.from({ length: 140 }).map((_, i) => {
           const shape = shapes[i % shapes.length];
@@ -936,7 +1088,6 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
           const height = shape === "rect" ? size * 1.4 : size;
           const color = confettiColors[i % confettiColors.length];
           const duration = 3 + Math.random() * 3;
-          // negative delay up to full duration so pieces are already mid-fall on load
           const delay = -Math.random() * duration;
           return (
             <span
@@ -991,30 +1142,27 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
           >
             {w.name.toUpperCase()}
           </motion.h1>
-          
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="rounded-xl p-2.5 text-white text-center" style={teamGradientStyle(w.color)}>
-            <div className="flex items-center justify-center gap-1.5">
-              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-black/30">
-                <TeamIcon id={w.icon} className="h-4 w-4" style={{ display: "block" }} />
+        <div className={cn("mt-3 grid gap-2", podiumCols)}>
+          {sorted.map(({ team, score }, i) => (
+            <div
+              key={team.id}
+              className={cn("rounded-xl p-2.5 text-white text-center", i > 0 && "opacity-80")}
+              style={teamGradientStyle(team.color)}
+            >
+              <div className="flex items-center justify-center gap-1.5">
+                <div className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-black/30">
+                  <TeamIcon id={team.icon} className="h-4 w-4" style={{ display: "block" }} />
+                </div>
+                <div className="text-[9px] uppercase tracking-widest text-white/80">
+                  {i === 0 ? "Winner" : i === 1 ? "Runner-up" : `#${i + 1}`}
+                </div>
               </div>
-              <div className="text-[9px] uppercase tracking-widest text-white/80">Winner</div>
+              <div className="mt-1 text-xs font-bold leading-tight [overflow-wrap:anywhere] hyphens-auto">{team.name}</div>
+              <div className="mt-0.5 font-display text-3xl text-stroke-black tabular-nums leading-none">{score}</div>
             </div>
-            <div className="mt-1 text-xs font-bold leading-tight [overflow-wrap:anywhere] hyphens-auto">{w.name}</div>
-            <div className="mt-0.5 font-display text-3xl text-stroke-black tabular-nums leading-none">{wScore}</div>
-          </div>
-          <div className="rounded-xl p-2.5 text-white opacity-80 text-center" style={teamGradientStyle(l.color)}>
-            <div className="flex items-center justify-center gap-1.5">
-              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-black/30">
-                <TeamIcon id={l.icon} className="h-4 w-4" style={{ display: "block" }} />
-              </div>
-              <div className="text-[9px] uppercase tracking-widest text-white/80">Runner-up</div>
-            </div>
-            <div className="mt-1 text-xs font-bold leading-tight [overflow-wrap:anywhere] hyphens-auto">{l.name}</div>
-            <div className="mt-0.5 font-display text-3xl text-stroke-black tabular-nums leading-none">{lScore}</div>
-          </div>
+          ))}
         </div>
 
         <div className="mt-2 rounded-xl bg-muted/40 px-3 py-1.5 text-center">
@@ -1037,7 +1185,6 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
         </div>
       </div>
 
-      {/* Home-screen tip — intentionally outside the screenshot ref */}
       <div className="relative z-10 mt-3 flex items-center gap-2 rounded-xl border border-border bg-card/60 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">
         <img src={faviconHref} alt="" className="h-6 w-6 shrink-0 rounded-md" />
         <p className="leading-snug">
@@ -1100,26 +1247,21 @@ function SettingsSheet({ settings, setSettings, onClose }: {
 
 /* ---------------- Round detail modal ---------------- */
 
-function RoundDetailModal({ round, teams, onClose }: {
-  round: RoundEntry; teams: Record<TeamKey, Team>; onClose: () => void;
+function RoundDetailModal({ round, teams, settings, onClose }: {
+  round: RoundEntry; teams: Team[]; settings: Settings; onClose: () => void;
 }) {
-  const winner = teams[round.matchWinner];
-  const loser = teams[round.matchWinner === "A" ? "B" : "A"];
-  const info = buildAnimInfo(round, round.deltaA, round.deltaB);
+  const winner = teams.find((t) => t.id === round.matchWinnerId);
+  const info = buildAnimInfo(round, teams, settings);
   const headlineMap: Record<RoundTier, string> = {
     flawless: "Flawless Extraction",
     martyred: "Martyred Victory",
     winIsWin: "A Win Is a Win",
     clean: "Clean Win",
     grind: "Grind Win",
+    ffa: "Round Recap",
   };
-  const subMap: Record<RoundTier, string> = {
-    flawless: `${winner.name} wins, killed ${loser.name} VIP first, ${winner.name} VIP survives.`,
-    martyred: `${winner.name} wins, killed ${loser.name} VIP first, but ${winner.name} VIP does not make it out alive.`,
-    winIsWin: `${winner.name} VIP dies first, but ${winner.name} still wins.`,
-    clean: `${winner.name} takes the match and their VIP walks away.`,
-    grind: `${winner.name} grinds out the win on match points alone.`,
-  };
+
+  const firstKiller = round.firstVipKillerId ? teams.find((t) => t.id === round.firstVipKillerId) : null;
 
   return (
     <motion.div
@@ -1133,7 +1275,7 @@ function RoundDetailModal({ round, teams, onClose }: {
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ type: "spring", stiffness: 260, damping: 22 }}
-        style={teamGradientStyle(winner.color)}
+        style={winner ? teamGradientStyle(winner.color) : undefined}
         className="relative w-full max-w-sm rounded-3xl p-6 text-white shadow-2xl"
       >
         <button
@@ -1148,36 +1290,37 @@ function RoundDetailModal({ round, teams, onClose }: {
           <div className="inline-flex items-center gap-2 rounded-full bg-black/30 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em]">
             Round {round.round}
           </div>
-          <div className="mt-3 mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-black/25">
-            <TeamIcon id={winner.icon} className="h-12 w-12" />
-          </div>
+          {winner && (
+            <div className="mt-3 mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-black/25">
+              <TeamIcon id={winner.icon} className="h-12 w-12" />
+            </div>
+          )}
           <div className="mt-3 font-display text-2xl leading-tight text-stroke-black">
             {headlineMap[info.tier]}
           </div>
-          <div className="mt-2 text-sm text-white/90">{subMap[info.tier]}</div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-2 text-center">
-          <div className="rounded-xl bg-black/25 p-3">
-            <div className="text-[10px] uppercase tracking-widest text-white/70 truncate">{teams.A.name}</div>
-            <div className="font-display text-2xl tabular-nums">+{round.deltaA}</div>
-          </div>
-          <div className="rounded-xl bg-black/25 p-3">
-            <div className="text-[10px] uppercase tracking-widest text-white/70 truncate">{teams.B.name}</div>
-            <div className="font-display text-2xl tabular-nums">+{round.deltaB}</div>
-          </div>
+        <div className={cn("mt-5 grid gap-2 text-center", teams.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
+          {teams.map((t) => (
+            <div key={t.id} className="rounded-xl bg-black/25 p-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/70 truncate">{t.name}</div>
+              <div className="font-display text-2xl tabular-nums">+{round.deltas[t.id] || 0}</div>
+            </div>
+          ))}
         </div>
 
         <ul className="mt-4 space-y-1.5 text-xs text-white/90">
-          <li className="flex items-center gap-2"><Crown className="h-3.5 w-3.5" /> Match winner: <strong className="ml-auto">{winner.name}</strong></li>
-          <li className="flex items-center gap-2"><Skull className="h-3.5 w-3.5" /> {teams.A.name} killed VIP: <strong className="ml-auto">{round.vipKilledA ? "Yes" : "No"}</strong></li>
-          <li className="flex items-center gap-2"><Skull className="h-3.5 w-3.5" /> {teams.B.name} killed VIP: <strong className="ml-auto">{round.vipKilledB ? "Yes" : "No"}</strong></li>
-          {round.firstVipKiller && (
-            <li className="flex items-center gap-2"><Zap className="h-3.5 w-3.5 text-yellow-300" /> First VIP down: <strong className="ml-auto">{teams[round.firstVipKiller].name}</strong></li>
+          <li className="flex items-center gap-2"><Crown className="h-3.5 w-3.5" /> Match winner: <strong className="ml-auto">{winner?.name ?? "—"}</strong></li>
+          <li className="flex items-start gap-2"><Skull className="h-3.5 w-3.5 mt-0.5" /> VIP kills:
+            <strong className="ml-auto text-right">
+              {round.vipKillerIds.length === 0 ? "None" : round.vipKillerIds.map((id) => teams.find((t) => t.id === id)?.name ?? "?").join(", ")}
+            </strong>
+          </li>
+          {firstKiller && (
+            <li className="flex items-center gap-2"><Zap className="h-3.5 w-3.5 text-yellow-300" /> First VIP down: <strong className="ml-auto">{firstKiller.name}</strong></li>
           )}
         </ul>
       </motion.div>
     </motion.div>
   );
 }
-
