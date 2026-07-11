@@ -120,6 +120,10 @@
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to { transform: translate(-50%, -50%) rotate(360deg); }
 }
+@keyframes rays-spin-center {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 @keyframes rays-spin-reverse {
   from { transform: translate(-50%, -50%) rotate(360deg) scale(1); }
   50%  { transform: translate(-50%, -50%) rotate(180deg) scale(1.08); }

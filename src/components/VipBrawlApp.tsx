@@ -1087,12 +1087,13 @@ const WinnerScreen = forwardRef<HTMLDivElement, {
 
   return (
     <div className="relative flex min-h-[100dvh] flex-col p-4 pb-6 overflow-hidden">
-      {/* Solid sunburst wedges filling the whole viewport */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed left-1/2 top-1/2 z-0 h-[220vmax] w-[220vmax] -translate-x-1/2 -translate-y-1/2"
-        style={{ background: raysBg, animation: "rays-spin 60s linear infinite" }}
-      />
+      {/* Solid sunburst wedges filling the whole viewport, centered via flex */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center overflow-hidden">
+        <div
+          className="h-[220vmax] w-[220vmax] shrink-0"
+          style={{ background: raysBg, animation: "rays-spin-center 60s linear infinite" }}
+        />
+      </div>
       {/* Hot center bloom */}
       <div
         aria-hidden
