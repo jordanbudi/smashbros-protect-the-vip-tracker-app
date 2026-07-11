@@ -694,6 +694,11 @@ function PlayScreen({
     if (firstVipKillerId && !vipKillerIds.includes(firstVipKillerId)) setFirstVipKillerId(null);
   }, [vipKillerIds, settings.firstVipMode, firstVipKillerId]);
 
+  // Match winner must be a team that killed a VIP this round
+  useEffect(() => {
+    if (matchWinnerId && !vipKillerIds.includes(matchWinnerId)) setMatchWinnerId(null);
+  }, [vipKillerIds, matchWinnerId]);
+
   const needsFirstVipPick = settings.firstVipMode && vipKillerIds.length >= 2;
   const canSubmit = matchWinnerId !== null && (!needsFirstVipPick || firstVipKillerId !== null);
 
