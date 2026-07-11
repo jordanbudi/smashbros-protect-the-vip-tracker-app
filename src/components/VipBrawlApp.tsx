@@ -822,18 +822,22 @@ function PlayScreen({
         <div className="mt-4">
           <Label>Match winner</Label>
           <div className={cn("mt-1 grid gap-2", teams.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
-            {teams.map((t) => (
-              <IconToggleTile
-                key={t.id}
-                active={matchWinnerId === t.id}
-                color={t.color}
-                onClick={() => setMatchWinnerId(t.id)}
-                icon={<TeamIcon id={t.icon} className="h-8 w-8" />}
-                badge={<Crown className="h-3.5 w-3.5" />}
-                label={t.name}
-                sub={`+${settings.matchWinPoints}`}
-              />
-            ))}
+            {teams.map((t) => {
+              const eligible = vipKillerIds.includes(t.id);
+              return (
+                <IconToggleTile
+                  key={t.id}
+                  active={matchWinnerId === t.id}
+                  color={t.color}
+                  onClick={() => eligible && setMatchWinnerId(t.id)}
+                  icon={<TeamIcon id={t.icon} className="h-8 w-8" />}
+                  badge={<Crown className="h-3.5 w-3.5" />}
+                  label={t.name}
+                  sub={eligible ? `+${settings.matchWinPoints}` : "must kill a VIP"}
+                  disabled={!eligible}
+                />
+              );
+            })}
           </div>
         </div>
 
